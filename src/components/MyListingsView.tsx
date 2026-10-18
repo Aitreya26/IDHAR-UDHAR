@@ -4,11 +4,17 @@ import { ItemVisual } from './ItemVisual';
 import { getSellerReputation } from '../data/reputation';
 import { getRentalDueStatus } from './ExchangesFeed';
 import { chatService } from '../utils/chatService';
+import { COLLEGES } from '../data/colleges';
 import { 
   User, 
   ShieldCheck, 
   MapPin, 
   Edit3, 
+  Pencil,
+  Camera,
+  Upload,
+  Lock,
+  X,
   LogOut, 
   CheckCircle2, 
   Trash2,
@@ -58,6 +64,73 @@ export const MyListingsView: React.FC<MyListingsViewProps> = ({
   const [editingRoom, setEditingRoom] = useState(false);
   const [roomInput, setRoomInput] = useState(currentUser.roomNumber);
   const [sentReminders, setSentReminders] = useState<Record<string, boolean>>({});
+
+  // Comprehensive Profile Editing states
+  const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
+  const [editFullName, setEditFullName] = useState(currentUser.fullName);
+  const [editRollNumber, setEditRollNumber] = useState(currentUser.rollNumber || '');
+  const [editCourse, setEditCourse] = useState(currentUser.course || 'B.Tech CSE');
+  const [editYear, setEditYear] = useState(currentUser.year || '2nd Year');
+  const [editHostel, setEditHostel] = useState(currentUser.hostelName);
+  const [editRoom, setEditRoom] = useState(currentUser.roomNumber);
+  const [editPhone, setEditPhone] = useState(currentUser.phone);
+  const [editAvatarUrl, setEditAvatarUrl] = useState<string>(currentUser.avatarUrl || '');
+  const [profileSaveSuccess, setProfileSaveSuccess] = useState(false);
+
+  const handleOpenEditProfile = () => {
+    setEditFullName(currentUser.fullName);
+    setEditRollNumber(currentUser.rollNumber || '');
+    setEditCourse(currentUser.course || 'B.Tech CSE');
+    setEditYear(currentUser.year || '2nd Year');
+    setEditHostel(currentUser.hostelName);
+    setEditRoom(currentUser.roomNumber);
+    setEditPhone(currentUser.phone);
+    setEditAvatarUrl(currentUser.avatarUrl || '');
+    setProfileSaveSuccess(false);
+    setIsEditProfileOpen(true);
+  };
+
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Please select an image smaller than 5MB');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      setEditAvatarUrl(result);
+      if (!isEditProfileOpen) {
+        onUpdateUser({
+          ...currentUser,
+          avatarUrl: result,
+        });
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSaveProfile = (e: React.FormEvent) => {
+    e.preventDefault();
+    const updated: UserProfile = {
+      ...currentUser,
+      fullName: currentUser.fullName,
+      rollNumber: currentUser.rollNumber,
+      phone: currentUser.phone,
+      course: editCourse.trim() || currentUser.course,
+      year: editYear || currentUser.year,
+      hostelName: editHostel || currentUser.hostelName,
+      roomNumber: editRoom.trim() || currentUser.roomNumber,
+      avatarUrl: editAvatarUrl || undefined,
+    };
+    onUpdateUser(updated);
+    setProfileSaveSuccess(true);
+    setTimeout(() => {
+      setIsEditProfileOpen(false);
+      setProfileSaveSuccess(false);
+    }, 600);
+  };
 
   const handleSendReminder = (exchange: ExchangeSession) => {
     const status = getRentalDueStatus(exchange.rentDueDate);
@@ -120,19 +193,51 @@ export const MyListingsView: React.FC<MyListingsViewProps> = ({
     <div className="w-full bg-[#F8FAFC] dark:bg-[#0A0A0A] select-none pb-14 transition-colors duration-200">
       {/* 1. Curved Indigo Banner & Profile Card matching Screenshot 10 */}
       <div className="relative bg-[#4F46E5] dark:bg-gradient-to-r dark:from-[#312E81] dark:via-[#1E1B4B] dark:to-[#0F172A] text-white pt-8 pb-10 px-6 rounded-b-[36px] flex flex-col items-center text-center shadow-md">
-        {/* Large Avatar Circle matching Screenshot 10 */}
-        <div className="w-24 h-24 rounded-full bg-white/20 border-4 border-white/40 flex items-center justify-center mb-3 shadow-inner">
-          <User className="w-12 h-12 text-white" strokeWidth={1.8} />
+        {/* Large Avatar Circle with Photo upload button */}
+        <div className="relative mb-3 group">
+          <div className="w-24 h-24 rounded-full bg-white/20 border-4 border-white/40 flex items-center justify-center shadow-inner overflow-hidden">
+            {currentUser.avatarUrl ? (
+              <img
+                src={currentUser.avatarUrl}
+                alt={currentUser.fullName}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full flex flex-col items-center justify-center bg-white/15 text-white/80">
+                <User className="w-12 h-12" />
+              </div>
+            )}
+          </div>
+          {/* Direct Camera / Photo Upload trigger */}
+          <label
+            htmlFor="profile-avatar-direct-upload"
+            className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-white dark:bg-slate-800 text-[#4F46E5] dark:text-cyan-400 border-2 border-white dark:border-slate-700 shadow-md flex items-center justify-center cursor-pointer hover:scale-110 active:scale-95 transition-all"
+            title="Upload Profile Photo"
+          >
+            <Camera className="w-4 h-4" />
+            <input
+              id="profile-avatar-direct-upload"
+              type="file"
+              accept="image/*"
+              onChange={handlePhotoUpload}
+              className="hidden"
+            />
+          </label>
         </div>
 
-        {/* User Name & Verified Badge */}
+        {/* User Name & Pencil Edit Profile button */}
         <div className="flex items-center gap-2">
           <h2 className="text-2xl font-black text-white">
             {currentUser.fullName}
           </h2>
-          <div className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-white" title="Verified Campus Student">
-            <ShieldCheck className="w-3.5 h-3.5 text-white" />
-          </div>
+          <button
+            onClick={handleOpenEditProfile}
+            className="ml-1 p-1.5 rounded-xl bg-white/20 hover:bg-white/30 text-white backdrop-blur-md transition-all cursor-pointer flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 active:scale-95 shadow-xs"
+            title="Edit Profile"
+          >
+            <Pencil className="w-3.5 h-3.5 text-white" />
+            <span>Edit</span>
+          </button>
         </div>
 
         {/* Course & Year */}
@@ -148,17 +253,13 @@ export const MyListingsView: React.FC<MyListingsViewProps> = ({
           </div>
         )}
 
-        {/* Reputation mini stats */}
+        {/* Reputation mini stats without streak */}
         {reputation.ratingsCount > 0 && (
           <div className="mt-2 flex items-center justify-center gap-2 text-[11px] text-indigo-100 dark:text-slate-300">
             <span className="flex items-center gap-0.5 font-bold">
               <Star className="w-3 h-3 text-amber-300 fill-amber-300" />
               <span>{reputation.averageRating.toFixed(1)}</span>
               <span className="font-normal opacity-80">({reputation.ratingsCount} ratings)</span>
-            </span>
-            <span>•</span>
-            <span className="font-medium">
-              {reputation.consecutiveFourPlus} streak (4★+)
             </span>
           </div>
         )}
@@ -621,6 +722,225 @@ export const MyListingsView: React.FC<MyListingsViewProps> = ({
           </button>
         </div>
       </div>
+
+      {/* 5. Comprehensive Edit Student Profile Modal */}
+      {isEditProfileOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#1E293B] rounded-3xl max-w-md w-full p-6 border border-slate-100 dark:border-slate-700 shadow-2xl space-y-4 animate-in zoom-in-95 duration-150 text-slate-800 dark:text-slate-100 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2 text-[#4F46E5] dark:text-cyan-400 font-black text-sm uppercase tracking-wide">
+                <Pencil className="w-4 h-4" />
+                <span>Edit Student Profile</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsEditProfileOpen(false)}
+                className="p-1 rounded-full text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveProfile} className="space-y-4">
+              {/* Campus Credentials Locked Notice */}
+              <div className="p-3 rounded-2xl bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-800/60 text-amber-900 dark:text-amber-200 text-xs flex items-start gap-2.5">
+                <Lock className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                <div className="space-y-0.5">
+                  <span className="font-bold block text-[11px] uppercase tracking-wide text-amber-800 dark:text-amber-300">
+                    Campus Identity Locked
+                  </span>
+                  <p className="text-[11px] text-amber-800/90 dark:text-amber-300/90 leading-relaxed">
+                    Full Name, Roll Number, and Mobile Phone cannot be edited to safeguard campus peer exchanges. For corrections, contact the Chief Proctor.
+                  </p>
+                </div>
+              </div>
+
+              {/* Photo Upload & Preview Section */}
+              <div className="flex flex-col items-center p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 space-y-3">
+                <div className="relative">
+                  <div className="w-20 h-20 rounded-full border-2 border-[#4F46E5] dark:border-cyan-400 overflow-hidden bg-slate-100 dark:bg-slate-800 shadow-xs flex items-center justify-center">
+                    {editAvatarUrl ? (
+                      <img src={editAvatarUrl} alt="Preview" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex flex-col items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-400">
+                        <User className="w-10 h-10 text-slate-400 dark:text-slate-500" />
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <label className="px-3 py-1.5 rounded-xl bg-[#4F46E5] hover:bg-indigo-600 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs transition-all">
+                    <Camera className="w-3.5 h-3.5" />
+                    <span>Upload Photo</span>
+                    <input type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" />
+                  </label>
+                  {editAvatarUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setEditAvatarUrl('')}
+                      className="px-2.5 py-1.5 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-rose-100 dark:hover:bg-rose-950/40 text-slate-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 font-bold text-xs transition-colors cursor-pointer"
+                    >
+                      Reset Photo
+                    </button>
+                  )}
+                </div>
+                <p className="text-[10px] text-slate-400 text-center">
+                  Attach your campus student photo (JPG, PNG or WebP)
+                </p>
+              </div>
+
+              {/* Full Name (Locked) */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                    Full Name
+                  </label>
+                  <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800/80 px-1.5 py-0.5 rounded flex items-center gap-1">
+                    <Lock className="w-2.5 h-2.5" /> Locked
+                  </span>
+                </div>
+                <input
+                  type="text"
+                  disabled
+                  readOnly
+                  value={currentUser.fullName}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 text-slate-500 dark:text-slate-400 text-xs font-bold cursor-not-allowed select-none"
+                  title="Full Name cannot be edited once registered"
+                />
+              </div>
+
+              {/* Roll Number (Locked) & Academic Year (Editable) */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                      Roll Number
+                    </label>
+                    <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800/80 px-1.5 py-0.5 rounded flex items-center gap-1">
+                      <Lock className="w-2.5 h-2.5" /> Locked
+                    </span>
+                  </div>
+                  <input
+                    type="text"
+                    disabled
+                    readOnly
+                    value={currentUser.rollNumber || 'Not set'}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 text-slate-500 dark:text-slate-400 text-xs font-mono font-bold cursor-not-allowed select-none"
+                    title="Roll Number cannot be edited once registered"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">
+                    Year of Study
+                  </label>
+                  <select
+                    value={editYear}
+                    onChange={(e) => setEditYear(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-[#4F46E5] cursor-pointer"
+                  >
+                    <option value="1st Year">1st Year</option>
+                    <option value="2nd Year">2nd Year</option>
+                    <option value="3rd Year">3rd Year</option>
+                    <option value="4th Year">4th Year</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Course / Branch */}
+              <div>
+                <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">
+                  Course / Branch
+                </label>
+                <input
+                  type="text"
+                  value={editCourse}
+                  onChange={(e) => setEditCourse(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-[#4F46E5]"
+                  placeholder="e.g. B.Tech CSE"
+                />
+              </div>
+
+              {/* Hostel & Room Number */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">
+                    Hostel Bhawan
+                  </label>
+                  <select
+                    value={editHostel}
+                    onChange={(e) => setEditHostel(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-[#4F46E5]"
+                  >
+                    {COLLEGES[0]?.hostels.map((h) => (
+                      <option key={h} value={h}>
+                        {h}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">
+                    Room Number
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editRoom}
+                    onChange={(e) => setEditRoom(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-[#4F46E5]"
+                    placeholder="e.g. Room 108"
+                  />
+                </div>
+              </div>
+
+              {/* Mobile Phone Number (Locked) */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                    Mobile Phone Number
+                  </label>
+                  <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800/80 px-1.5 py-0.5 rounded flex items-center gap-1">
+                    <Lock className="w-2.5 h-2.5" /> Locked
+                  </span>
+                </div>
+                <input
+                  type="tel"
+                  disabled
+                  readOnly
+                  value={currentUser.phone}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 text-slate-500 dark:text-slate-400 text-xs font-mono font-bold cursor-not-allowed select-none"
+                  title="Mobile Phone cannot be edited once registered"
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsEditProfileOpen(false)}
+                  className="flex-1 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-3 rounded-xl bg-[#4F46E5] hover:bg-indigo-600 text-white font-extrabold text-xs shadow-md transition-all active:scale-98 cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  {profileSaveSuccess ? (
+                    <>
+                      <Check className="w-4 h-4 text-emerald-300" />
+                      <span>Saved!</span>
+                    </>
+                  ) : (
+                    <span>Save Changes</span>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -11,8 +11,6 @@
 
   body {
     font-family: var(--font-body);
-    background-color: #0A0A0A;
-    color: #F1F5F9;
     overflow-x: hidden;
   }
 
@@ -79,18 +77,68 @@
   transform-style: preserve-3d;
 }
 
-/* Custom scrollbars */
+/* Custom Scrollbars: Subtle, rounded & responsive for Light & Dark mode */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
+
 ::-webkit-scrollbar-track {
-  background: #0D0E12;
+  background: transparent;
 }
+
+/* Light mode thumb */
 ::-webkit-scrollbar-thumb {
-  background: #1F2430;
-  border-radius: 3px;
+  background: rgba(148, 163, 184, 0.4);
+  border-radius: 9999px;
+  transition: background 0.2s ease;
 }
+
 ::-webkit-scrollbar-thumb:hover {
-  background: #2D3748;
+  background: rgba(100, 116, 139, 0.7);
+}
+
+/* Dark mode thumb */
+.dark ::-webkit-scrollbar-track,
+html.dark ::-webkit-scrollbar-track,
+body.dark ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.dark ::-webkit-scrollbar-thumb,
+html.dark ::-webkit-scrollbar-thumb,
+body.dark ::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3);
+  border-radius: 9999px;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover,
+html.dark ::-webkit-scrollbar-thumb:hover,
+body.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(56, 189, 248, 0.55);
+}
+
+/* Firefox scrollbar styling */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.4) transparent;
+}
+
+.dark *,
+html.dark * {
+  scrollbar-color: rgba(148, 163, 184, 0.3) transparent;
+}
+
+/* Utility to hide clunky horizontal scrollbars on carousels/chips */
+.scrollbar-none::-webkit-scrollbar,
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.scrollbar-none,
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }

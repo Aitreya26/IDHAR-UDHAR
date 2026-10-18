@@ -2,18 +2,8 @@ import React from 'react';
 import { motion } from 'motion/react';
 import { 
   Store, 
-  ArrowRight, 
-  ShieldCheck, 
   Sparkles, 
-  BookOpen, 
-  PenTool, 
-  Laptop, 
-  Bike, 
-  Eye,
-  Dumbbell,
-  Headphones,
-  Calculator,
-  FlaskConical
+  Eye
 } from 'lucide-react';
 import { DarkModeToggle } from './DarkModeToggle';
 
@@ -30,82 +20,6 @@ export const BootScreen: React.FC<BootScreenProps> = ({
   isDarkMode = false,
   onToggleDarkMode,
 }) => {
-  // Sleek floating icon bubbles (icon-only, no names or prices)
-  const floatingIcons = [
-    {
-      id: 'icon-drafter',
-      icon: <PenTool className="w-5 h-5 text-cyan-300" />,
-      initialX: -140,
-      initialY: -110,
-      delay: 0.1,
-      size: 'w-11 h-11',
-      glow: 'shadow-[0_0_15px_rgba(6,182,212,0.35)]',
-    },
-    {
-      id: 'icon-laptop',
-      icon: <Laptop className="w-5 h-5 text-indigo-200" />,
-      initialX: 140,
-      initialY: -100,
-      delay: 0.25,
-      size: 'w-11 h-11',
-      glow: 'shadow-[0_0_15px_rgba(99,102,241,0.35)]',
-    },
-    {
-      id: 'icon-book',
-      icon: <BookOpen className="w-5 h-5 text-amber-300" />,
-      initialX: -130,
-      initialY: 80,
-      delay: 0.4,
-      size: 'w-11 h-11',
-      glow: 'shadow-[0_0_15px_rgba(251,191,36,0.35)]',
-    },
-    {
-      id: 'icon-bike',
-      icon: <Bike className="w-5 h-5 text-emerald-300" />,
-      initialX: 130,
-      initialY: 85,
-      delay: 0.55,
-      size: 'w-11 h-11',
-      glow: 'shadow-[0_0_15px_rgba(52,211,153,0.35)]',
-    },
-    {
-      id: 'icon-sports',
-      icon: <Dumbbell className="w-4 h-4 text-rose-300" />,
-      initialX: -170,
-      initialY: -20,
-      delay: 0.35,
-      size: 'w-9 h-9',
-      glow: 'shadow-[0_0_12px_rgba(244,63,94,0.3)]',
-    },
-    {
-      id: 'icon-headphones',
-      icon: <Headphones className="w-4 h-4 text-violet-300" />,
-      initialX: 170,
-      initialY: -10,
-      delay: 0.45,
-      size: 'w-9 h-9',
-      glow: 'shadow-[0_0_12px_rgba(167,139,250,0.3)]',
-    },
-    {
-      id: 'icon-calc',
-      icon: <Calculator className="w-4 h-4 text-sky-300" />,
-      initialX: -70,
-      initialY: -150,
-      delay: 0.2,
-      size: 'w-9 h-9',
-      glow: 'shadow-[0_0_12px_rgba(56,189,248,0.3)]',
-    },
-    {
-      id: 'icon-flask',
-      icon: <FlaskConical className="w-4 h-4 text-teal-300" />,
-      initialX: 70,
-      initialY: -150,
-      delay: 0.3,
-      size: 'w-9 h-9',
-      glow: 'shadow-[0_0_12px_rgba(45,212,191,0.3)]',
-    },
-  ];
-
   return (
     <div
       className={`relative w-full h-full min-h-[600px] flex-1 flex flex-col justify-between items-center p-6 sm:p-8 overflow-hidden select-none transition-colors duration-500 ${
@@ -179,18 +93,8 @@ export const BootScreen: React.FC<BootScreenProps> = ({
         ))}
       </div>
 
-      {/* Top Bar with Verified Badge and Dark Mode Toggle */}
-      <div className="w-full flex items-center justify-between z-20">
-        <motion.div
-          initial={{ opacity: 0, x: -10 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.4 }}
-          className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 dark:bg-slate-800/80 backdrop-blur-md border border-white/20 dark:border-slate-700/60 text-[11px] font-bold text-white tracking-wide shadow-xs"
-        >
-          <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-          <span>Verified Student Exchange</span>
-        </motion.div>
-
+      {/* Top Bar with Dark Mode Toggle */}
+      <div className="w-full flex items-center justify-end z-20">
         {onToggleDarkMode && (
           <motion.div
             initial={{ opacity: 0, scale: 0.8 }}
@@ -205,32 +109,6 @@ export const BootScreen: React.FC<BootScreenProps> = ({
 
       {/* Center Animated Brand Stage */}
       <div className="relative my-auto flex flex-col items-center justify-center z-10 py-6">
-        {/* Floating Minimalist Icon Bubbles (Clean, no names or prices) */}
-        <div className="absolute inset-0 pointer-events-none hidden sm:block">
-          {floatingIcons.map((item) => (
-            <motion.div
-              key={item.id}
-              initial={{ opacity: 0, scale: 0.5, x: item.initialX * 0.8, y: item.initialY * 0.8 }}
-              animate={{
-                opacity: 1,
-                scale: 1,
-                x: [item.initialX, item.initialX + 5, item.initialX],
-                y: [item.initialY, item.initialY - 7, item.initialY],
-              }}
-              transition={{
-                opacity: { duration: 0.6, delay: item.delay },
-                scale: { duration: 0.6, delay: item.delay },
-                x: { repeat: Infinity, duration: 4.5, ease: 'easeInOut', delay: item.delay },
-                y: { repeat: Infinity, duration: 4, ease: 'easeInOut', delay: item.delay },
-              }}
-              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
-            >
-              <div className={`${item.size} rounded-2xl backdrop-blur-md border border-white/25 dark:border-slate-700/80 bg-white/15 dark:bg-slate-900/80 flex items-center justify-center ${item.glow} hover:scale-110 transition-transform`}>
-                {item.icon}
-              </div>
-            </motion.div>
-          ))}
-        </div>
 
         {/* Center Brand Identity */}
         <div className="relative flex flex-col items-center text-center space-y-4">
@@ -316,7 +194,6 @@ export const BootScreen: React.FC<BootScreenProps> = ({
           />
 
           <span>Get Started</span>
-          <ArrowRight className="w-4 h-4 stroke-[2.5] group-hover:translate-x-1 transition-transform" />
         </motion.button>
 
         {/* Guest Mode Button - Exactly "Browse As Guest" */}

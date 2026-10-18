@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Listing, UserProfile, CategoryType } from '../types';
 import { ItemVisual } from './ItemVisual';
-import { ChevronLeft, Search, Filter, User, MapPin, Clock, X } from 'lucide-react';
+import { ChevronLeft, Search, Filter, User, MapPin, Clock, X, AlertCircle, Bell } from 'lucide-react';
 import { safeStorage } from '../utils/storage';
 
 const RECENT_SEARCHES_KEY = 'idhar_udhar_recent_searches';
@@ -15,6 +15,7 @@ interface SearchViewProps {
   onBack: () => void;
   onSelectListing: (listing: Listing) => void;
   onOpenFullPhoto?: (listing: Listing) => void;
+  onOpenCreateRequest?: () => void;
 }
 
 export const SearchView: React.FC<SearchViewProps> = ({
@@ -25,6 +26,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
   onBack,
   onSelectListing,
   onOpenFullPhoto,
+  onOpenCreateRequest,
 }) => {
   const [query, setQuery] = useState(initialQuery);
   const [selectedCategory, setSelectedCategory] = useState<CategoryType | 'All'>(initialCategory);
@@ -33,6 +35,7 @@ export const SearchView: React.FC<SearchViewProps> = ({
     return safeStorage.getJSON<string[]>(RECENT_SEARCHES_KEY, []);
   });
 
+  const [soldItemNotice, setSoldItemNotice] = useState<Listing | null>(null);
   const saveTimerRef = useRef<any>(null);
 
   const saveSearchTerm = (term: string) => {
@@ -73,6 +76,10 @@ export const SearchView: React.FC<SearchViewProps> = ({
   };
 
   const handleListingClick = (item: Listing) => {
+    if (item.status === 'completed') {
+      setSoldItemNotice(item);
+      return;
+    }
     if (query.trim()) {
       saveSearchTerm(query);
     }
@@ -259,72 +266,108 @@ export const SearchView: React.FC<SearchViewProps> = ({
 
       {/* Vertical List of Cards matching Screenshot 7 */}
       <div className="space-y-3 pb-8">
-        {filteredResults.map((item) => (
-          <div
-            key={item.id}
-            onClick={() => handleListingClick(item)}
-            className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-800 p-3 shadow-sm hover:shadow-md transition-all cursor-pointer flex items-center justify-between gap-3 group"
-          >
-            {/* Left: Pastel Container with Icon or Photo */}
-            <div className="relative w-20 h-20 rounded-2xl overflow-hidden shrink-0 flex items-center justify-center bg-slate-50 dark:bg-slate-900 group/img">
-              <ItemVisual
-                title={item.title}
-                category={item.category}
-                tags={item.tags}
-                imageUrl={item.imageUrl}
-                className="w-full h-full"
-              />
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onOpenFullPhoto?.(item);
-                }}
-                className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 flex items-center justify-center text-white transition-opacity cursor-pointer"
-                title="View full photo"
-              >
-                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-black/70">Full</span>
-              </button>
-            </div>
+        {filteredResults.map((item) => {
+          const isSold = item.status === 'completed';
 
-            {/* Center: Title, Tags, Seller & Hostel matching Screenshot 7 */}
-            <div className="flex-1 min-w-0 space-y-1.5">
-              <h4 className="text-sm font-bold text-[#0F172A] dark:text-white group-hover:text-[#4F46E5] dark:group-hover:text-cyan-400 transition-colors truncate">
-                {item.title}
-              </h4>
+          return (
+            <div
+              key={item.id}
+              onClick={() => handleListingClick(item)}
+              className={`rounded-2xl border p-3 shadow-xs transition-all cursor-pointer flex items-center justify-between gap-3 group relative overflow-hidden ${
+                isSold
+                  ? 'bg-slate-100/90 dark:bg-slate-900/80 border-slate-300 dark:border-slate-800 opacity-75'
+                  : 'bg-white dark:bg-[#1E293B] border-slate-100 dark:border-slate-800 hover:shadow-md'
+              }`}
+            >
+              {/* Left: Pastel Container with Icon or Photo */}
+              <div className={`relative w-20 h-20 rounded-2xl overflow-hidden shrink-0 flex items-center justify-center bg-slate-100 dark:bg-slate-900 group/img ${isSold ? 'grayscale contrast-75 brightness-90' : ''}`}>
+                <ItemVisual
+                  title={item.title}
+                  category={item.category}
+                  tags={item.tags}
+                  imageUrl={item.imageUrl}
+                  className="w-full h-full"
+                />
 
-              {/* Tags row: e.g. "Stationery", "Like New" pills */}
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                  {item.tags[0] || item.category}
-                </span>
-                <span className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                  {item.condition}
-                </span>
+                {/* Tint overlay for sold items */}
+                {isSold && (
+                  <div className="absolute inset-0 bg-slate-900/25 pointer-events-none z-10" />
+                )}
+
+                {/* Slanted SOLD Ribbon on Image */}
+                {isSold && (
+                  <div className="absolute top-0 right-0 w-16 h-16 overflow-hidden pointer-events-none z-20">
+                    <div className="absolute transform rotate-45 bg-red-600 text-white font-black text-[9px] py-0.5 right-[-24px] top-[12px] w-[80px] text-center shadow-lg uppercase tracking-widest border-y border-white/30 select-none">
+                      SOLD
+                    </div>
+                  </div>
+                )}
+
+                {!isSold && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onOpenFullPhoto?.(item);
+                    }}
+                    className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 flex items-center justify-center text-white transition-opacity cursor-pointer"
+                    title="View full photo"
+                  >
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-black/70">Full</span>
+                  </button>
+                )}
               </div>
 
-              {/* Seller and Hostel */}
-              <div className="flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400 truncate pt-0.5">
-                <span className="flex items-center gap-1 truncate">
-                  <User className="w-3 h-3 text-slate-400 shrink-0" />
-                  <span className="truncate">{item.sellerName}</span>
-                </span>
-                <span>·</span>
-                <span className="flex items-center gap-1 truncate">
-                  <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
-                  <span className="truncate">{item.hostelName}</span>
+              {/* Center: Title, Tags, Seller & Hostel */}
+              <div className="flex-1 min-w-0 space-y-1.5">
+                <div className="flex items-center gap-1.5">
+                  <h4 className={`text-sm font-bold truncate flex-1 ${
+                    isSold
+                      ? 'line-through text-slate-400 dark:text-slate-500'
+                      : 'text-[#0F172A] dark:text-white group-hover:text-[#4F46E5] dark:group-hover:text-cyan-400 transition-colors'
+                  }`}>
+                    {item.title}
+                  </h4>
+                  {isSold && (
+                    <span className="shrink-0 px-1.5 py-0.2 rounded bg-red-100 dark:bg-red-950/60 text-red-600 dark:text-red-400 font-black text-[9px] uppercase tracking-wide">
+                      SOLD
+                    </span>
+                  )}
+                </div>
+
+                {/* Tags row: e.g. "Stationery", "Like New" pills */}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                    {item.tags[0] || item.category}
+                  </span>
+                  <span className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                    {item.condition}
+                  </span>
+                </div>
+
+                {/* Seller and Hostel */}
+                <div className="flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400 truncate pt-0.5">
+                  <span className="flex items-center gap-1 truncate">
+                    <User className="w-3 h-3 text-slate-400 shrink-0" />
+                    <span className="truncate">{item.sellerName}</span>
+                  </span>
+                  <span>·</span>
+                  <span className="flex items-center gap-1 truncate">
+                    <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+                    <span className="truncate">{item.hostelName}</span>
+                  </span>
+                </div>
+              </div>
+
+              {/* Right: Bold Blue Price */}
+              <div className="shrink-0 text-right">
+                <span className={`text-base font-extrabold ${isSold ? 'text-slate-400 dark:text-slate-500 line-through' : 'text-[#2563EB] dark:text-cyan-400'}`}>
+                  ₹{item.price.toLocaleString('en-IN')}
                 </span>
               </div>
             </div>
-
-            {/* Right: Bold Blue Price matching Screenshot 7 */}
-            <div className="shrink-0 text-right">
-              <span className="text-base font-extrabold text-[#2563EB] dark:text-cyan-400">
-                ₹{item.price.toLocaleString('en-IN')}
-              </span>
-            </div>
-          </div>
-        ))}
+          );
+        })}
 
         {filteredResults.length === 0 && (
           <div className="py-16 text-center text-slate-400 dark:text-slate-500 space-y-3">
@@ -348,6 +391,80 @@ export const SearchView: React.FC<SearchViewProps> = ({
           </div>
         )}
       </div>
+
+      {/* Sold Item Unavailable Notice Modal */}
+      {soldItemNotice && (
+        <div 
+          onClick={() => setSoldItemNotice(null)}
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white dark:bg-[#1E293B] rounded-3xl max-w-sm w-full p-6 border border-slate-100 dark:border-slate-800 shadow-2xl space-y-4 animate-in zoom-in-95 duration-150 text-slate-800 dark:text-slate-100 text-center"
+          >
+            <div className="w-14 h-14 rounded-2xl bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 mx-auto flex items-center justify-center shadow-xs border border-amber-200 dark:border-amber-800/60">
+              <AlertCircle className="w-7 h-7" />
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-red-100 dark:bg-red-950/60 text-red-600 dark:text-red-400 text-[10px] font-black uppercase tracking-wider">
+                Sold Out
+              </div>
+              <h3 className="text-lg font-black text-[#0F172A] dark:text-white">
+                Item Not Available
+              </h3>
+              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
+                Item not available at the moment, Please check again after some time or post a request
+              </p>
+            </div>
+
+            <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 flex items-center gap-3 text-left">
+              <div className="w-12 h-12 rounded-xl overflow-hidden shrink-0 bg-slate-200 dark:bg-slate-800">
+                <ItemVisual
+                  title={soldItemNotice.title}
+                  category={soldItemNotice.category}
+                  tags={soldItemNotice.tags}
+                  imageUrl={soldItemNotice.imageUrl}
+                  className="w-full h-full"
+                />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">
+                  {soldItemNotice.title}
+                </h4>
+                <span className="text-xs font-extrabold text-[#2563EB] dark:text-cyan-400">
+                  ₹{soldItemNotice.price.toLocaleString('en-IN')}
+                </span>
+                <span className="text-[10px] text-slate-400 block truncate">
+                  {soldItemNotice.hostelName}
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-2 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setSoldItemNotice(null);
+                  onOpenCreateRequest?.();
+                }}
+                className="w-full py-3 px-4 rounded-xl bg-[#4F46E5] hover:bg-[#4338CA] dark:bg-cyan-500 dark:hover:bg-cyan-400 text-white dark:text-slate-950 font-bold text-xs shadow-md transition-all active:scale-98 cursor-pointer flex items-center justify-center gap-2"
+              >
+                <Bell className="w-4 h-4" />
+                <span>Post a Request for this Item</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSoldItemNotice(null)}
+                className="w-full py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold text-xs transition-colors cursor-pointer"
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

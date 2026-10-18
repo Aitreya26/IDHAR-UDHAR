@@ -80,7 +80,7 @@ export const RequestDaalnaFeed: React.FC<RequestDaalnaFeedProps> = ({
 
       {/* Filter and Scope Tabs */}
       <div className="bg-white dark:bg-[#151A26] rounded-2xl p-3 border border-slate-100 dark:border-slate-800 shadow-xs space-y-2.5">
-        <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-900 rounded-xl overflow-x-auto">
+        <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-900 rounded-xl overflow-x-auto scrollbar-none no-scrollbar">
           <button
             onClick={() => setFilterScope('hostel')}
             className={`flex-1 min-w-[100px] px-2.5 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer whitespace-nowrap text-center ${
@@ -114,7 +114,7 @@ export const RequestDaalnaFeed: React.FC<RequestDaalnaFeedProps> = ({
         </div>
 
         {/* Category Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none no-scrollbar">
           {['all', 'Academics', 'Electronics', 'Lifestyle'].map((cat) => (
             <button
               key={cat}

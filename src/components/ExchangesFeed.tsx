@@ -403,31 +403,34 @@ export const ExchangesFeed: React.FC<ExchangesFeedProps> = ({
                       </span>
                     </div>
 
-                    {/* Verification input & Mark Successful buttons */}
-                    <div className="flex flex-col sm:flex-row gap-2">
-                      <div className="flex flex-1 gap-2">
+                    {/* Verification input & Mark Handover Done button */}
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
                         <input
                           type="text"
                           maxLength={4}
                           placeholder="4-digit code"
                           value={pinInputs[ex.id] || ''}
                           onChange={(e) => setPinInputs({ ...pinInputs, [ex.id]: e.target.value })}
-                          className="flex-1 px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono font-bold text-center tracking-widest text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:border-[#4F46E5] dark:focus:border-cyan-400"
+                          className="flex-1 min-w-0 px-3.5 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono font-bold text-center tracking-widest text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:border-[#4F46E5] dark:focus:border-cyan-400 shadow-2xs"
                         />
                         <button
+                          type="button"
                           onClick={() => handleVerify(ex)}
-                          className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shrink-0 cursor-pointer shadow-xs transition-colors"
+                          className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white font-bold text-xs shrink-0 cursor-pointer shadow-xs transition-all whitespace-nowrap"
                         >
                           Verify Code
                         </button>
                       </div>
 
-                      {/* Quick Mark Handover Successful button */}
+                      {/* Direct Mark Handover Done button */}
                       <button
+                        type="button"
                         onClick={() => handleDirectMarkSuccess(ex)}
-                        className="py-2 px-3 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 text-[#4F46E5] dark:text-cyan-400 font-bold text-xs border border-indigo-200 dark:border-indigo-800 transition-colors cursor-pointer text-center"
+                        className="w-full py-2.5 px-3 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 text-[#4F46E5] dark:text-cyan-400 font-bold text-xs border border-indigo-200 dark:border-indigo-800 transition-all cursor-pointer text-center flex items-center justify-center gap-1.5 active:scale-98 shadow-2xs"
                       >
-                        ✓ Mark Handover Done
+                        <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                        <span>Mark Handover Done</span>
                       </button>
                     </div>
 

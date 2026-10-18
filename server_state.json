@@ -2908,5 +2908,162 @@
       "warnings": []
     }
   },
-  "adminRemovalLogs": []
+  "adminRemovalLogs": [],
+  "threads": [
+    [
+      "thread-1",
+      {
+        "id": "thread-1",
+        "listingId": "lst-draft-1",
+        "listingTitle": "First Year Engineering Mini Drafter & Scale",
+        "listingPrice": 320,
+        "sellerId": "user-aitreya",
+        "sellerName": "Aitreya Srivastava",
+        "sellerHostel": "Shaheed Bhagat Singh Bhawan",
+        "sellerPhone": "+91 8094597917",
+        "buyerId": "user-rivastik",
+        "buyerName": "Rivastik",
+        "buyerHostel": "Pratap Bhawan",
+        "buyerPhone": "+91 9034009669",
+        "lastMessageText": "Can I collect it today near UIET Main Block after classes?",
+        "lastMessageTime": "10m ago",
+        "lastMessageSenderId": "user-rivastik",
+        "unreadCount": 1,
+        "updatedAt": 1792326323652
+      }
+    ],
+    [
+      "thread-2",
+      {
+        "id": "thread-2",
+        "listingId": "lst-book-1",
+        "listingTitle": "Artificial Intelligence & Python Handbook",
+        "listingPrice": 280,
+        "sellerId": "user-naman",
+        "sellerName": "Naman",
+        "sellerHostel": "Narhari Bhawan",
+        "sellerPhone": "+91 9478579360",
+        "buyerId": "user-kushboo",
+        "buyerName": "Khusboo",
+        "buyerHostel": "Kalpana Chawla Bhawan",
+        "buyerPhone": "+91 9711457323",
+        "lastMessageText": "Yes! All AIML lab code solutions are included in the handbook.",
+        "lastMessageTime": "25m ago",
+        "lastMessageSenderId": "user-naman",
+        "unreadCount": 0,
+        "updatedAt": 1792325423652
+      }
+    ],
+    [
+      "thread-3",
+      {
+        "id": "thread-3",
+        "listingId": "lst-draft-2",
+        "listingTitle": "Casio fx-991CW Scientific Calculator",
+        "listingPrice": 180,
+        "sellerId": "user-rivastik",
+        "sellerName": "Rivastik",
+        "sellerHostel": "Pratap Bhawan",
+        "sellerPhone": "+91 9034009669",
+        "buyerId": "user-aitreya",
+        "buyerName": "Aitreya Srivastava",
+        "buyerHostel": "Shaheed Bhagat Singh Bhawan",
+        "buyerPhone": "+91 8094597917",
+        "lastMessageText": "Is the calculator approved for the mid-term examinations?",
+        "lastMessageTime": "1h ago",
+        "lastMessageSenderId": "user-aitreya",
+        "unreadCount": 0,
+        "updatedAt": 1792323323652
+      }
+    ]
+  ],
+  "messages": [
+    [
+      "thread-1",
+      [
+        {
+          "id": "msg-seed-1",
+          "threadId": "thread-1",
+          "listingId": "lst-draft-1",
+          "senderId": "user-rivastik",
+          "senderName": "Rivastik",
+          "receiverId": "user-aitreya",
+          "text": "Hi Aitreya! Is the mini drafter clamp and scale in good condition?",
+          "timestamp": "15m ago",
+          "createdAt": 1792326023653,
+          "read": true
+        },
+        {
+          "id": "msg-seed-2",
+          "threadId": "thread-1",
+          "listingId": "lst-draft-1",
+          "senderId": "user-aitreya",
+          "senderName": "Aitreya Srivastava",
+          "receiverId": "user-rivastik",
+          "text": "Hey Rivastik! Yes, perfectly calibrated, used for ED lab only. Has protective black bag.",
+          "timestamp": "12m ago",
+          "createdAt": 1792326203653,
+          "read": true
+        },
+        {
+          "id": "msg-seed-3",
+          "threadId": "thread-1",
+          "listingId": "lst-draft-1",
+          "senderId": "user-rivastik",
+          "senderName": "Rivastik",
+          "receiverId": "user-aitreya",
+          "text": "Can I collect it today near UIET Main Block after classes?",
+          "timestamp": "10m ago",
+          "createdAt": 1792326323653,
+          "read": false
+        }
+      ]
+    ],
+    [
+      "thread-2",
+      [
+        {
+          "id": "msg-seed-4",
+          "threadId": "thread-2",
+          "listingId": "lst-book-1",
+          "senderId": "user-kushboo",
+          "senderName": "Khusboo",
+          "receiverId": "user-naman",
+          "text": "Hi Naman, does this handbook cover the 1st semester AIML syllabus?",
+          "timestamp": "30m ago",
+          "createdAt": 1792325123653,
+          "read": true
+        },
+        {
+          "id": "msg-seed-5",
+          "threadId": "thread-2",
+          "listingId": "lst-book-1",
+          "senderId": "user-naman",
+          "senderName": "Naman",
+          "receiverId": "user-kushboo",
+          "text": "Yes! All AIML lab code solutions are included in the handbook.",
+          "timestamp": "25m ago",
+          "createdAt": 1792325423653,
+          "read": true
+        }
+      ]
+    ],
+    [
+      "thread-3",
+      [
+        {
+          "id": "msg-seed-6",
+          "threadId": "thread-3",
+          "listingId": "lst-draft-2",
+          "senderId": "user-aitreya",
+          "senderName": "Aitreya Srivastava",
+          "receiverId": "user-rivastik",
+          "text": "Is the calculator approved for the mid-term examinations?",
+          "timestamp": "1h ago",
+          "createdAt": 1792323323653,
+          "read": true
+        }
+      ]
+    ]
+  ]
 }

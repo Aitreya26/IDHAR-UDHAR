@@ -809,6 +809,21 @@ app.put('/api/listings/:id/status', (req, res) => {
   res.json({ success: true, id, status });
 });
 
+app.post('/api/listings/status', (req, res) => {
+  const { id, status } = req.body;
+  if (!id || !status) {
+    return res.status(400).json({ error: 'Missing id or status' });
+  }
+  serverListings = serverListings.map((l) => (l.id === id ? { ...l, status } : l));
+  saveServerState();
+  broadcastToAll({
+    type: 'LISTING_UPDATED',
+    id,
+    status,
+  });
+  res.json({ success: true, id, status });
+});
+
 app.delete('/api/listings/:id', (req, res) => {
   const { id } = req.params;
   serverListings = serverListings.filter((l) => l.id !== id);

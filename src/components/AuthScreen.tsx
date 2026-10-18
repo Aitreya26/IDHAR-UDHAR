@@ -22,11 +22,11 @@ import {
   User, 
   Sparkles, 
   AlertCircle,
+  AlertTriangle,
   Hash,
   Home,
   RefreshCw,
   Lock,
-  Flame,
   Radio,
   Loader2,
   Copy,
@@ -317,7 +317,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
       if (!profile) {
         profile = {
           id: `user-${cleanPhone}`,
-          fullName: 'Verified UIET Student',
+          fullName: 'UIET Student',
           gender: 'Male',
           phone: `+91 ${cleanPhone}`,
           rollNumber: `12411${cleanPhone.slice(-3)}`,
@@ -414,7 +414,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                 IDHAR-UDHAR
               </span>
               <span className="px-1.5 py-0.2 rounded-md bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 font-extrabold text-[9px] flex items-center gap-0.5 border border-amber-300 dark:border-amber-800">
-                <Flame className="w-2.5 h-2.5" />
+                <ShieldCheck className="w-2.5 h-2.5" />
                 <span>Firebase</span>
               </span>
             </div>
@@ -781,7 +781,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                 Register Student Profile
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Create your verified profile saved in Firebase Firestore.
+                Create your student profile saved in Firebase Firestore.
               </p>
             </div>
 
@@ -792,10 +792,27 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
               </div>
             )}
 
+            {/* Permanent Campus Identity Notice (Warning for First-Time Registration) */}
+            <div className="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/80 text-amber-900 dark:text-amber-200 text-xs space-y-1 shadow-xs">
+              <div className="flex items-center gap-1.5 font-black text-amber-800 dark:text-amber-300 uppercase tracking-wide text-[11px]">
+                <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                <span>Important Campus Identity Notice</span>
+              </div>
+              <p className="leading-relaxed font-medium">
+                Please enter your details carefully. Your <strong className="font-bold underline">Full Name</strong>, <strong className="font-bold underline">Roll Number</strong>, and <strong className="font-bold underline">Mobile Phone</strong> cannot be edited once your account is created.
+              </p>
+            </div>
+
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1.5">
-                Full Name
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+                  Full Name
+                </label>
+                <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                  <Lock className="w-2.5 h-2.5" />
+                  Cannot be changed later
+                </span>
+              </div>
               <input
                 type="text"
                 required
@@ -808,9 +825,14 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1.5">
-                  Roll Number
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+                    Roll Number
+                  </label>
+                  <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400">
+                    Locked
+                  </span>
+                </div>
                 <input
                   type="text"
                   required
@@ -822,9 +844,14 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1.5">
-                  Mobile Number
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+                    Mobile Number
+                  </label>
+                  <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400">
+                    Locked
+                  </span>
+                </div>
                 <input
                   type="tel"
                   required

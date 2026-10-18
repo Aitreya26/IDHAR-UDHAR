@@ -46,6 +46,7 @@ export interface UserProfile {
   year?: string;
   studentId?: string;
   avatarSeed: string;
+  avatarUrl?: string;
   joinedDate: string;
   isAdmin?: boolean;
   isSuspended?: boolean;

@@ -218,9 +218,13 @@ export default function App() {
         const freshListings = await realtimeService.fetchListings();
         if (Array.isArray(freshListings) && freshListings.length > 0) {
           setListings((prev) => {
+            const prevMap = new Map(prev.map((p) => [p.id, p]));
             const hasChange =
               prev.length !== freshListings.length ||
-              freshListings.some((f, idx) => !prev[idx] || prev[idx].id !== f.id || prev[idx].status !== f.status);
+              freshListings.some((f) => {
+                const existing = prevMap.get(f.id);
+                return !existing || existing.status !== f.status;
+              });
             if (hasChange) {
               safeStorage.setJSON('idhar_udhar_listings', freshListings);
               return freshListings;
@@ -754,6 +758,7 @@ const toLocalDateString = (d: Date) =>
       it.id === id ? { ...it, status: newStatus } : it
     );
     setListings(updated);
+    safeStorage.setJSON('idhar_udhar_listings', updated);
     realtimeService.updateListingStatus(id, newStatus);
     broadcastSync('SYNC_LISTINGS', updated);
   };
@@ -1123,11 +1128,11 @@ const toLocalDateString = (d: Date) =>
               requestsCount={requests.length}
             />
 
-            {/* Quick Context Subheader for Requests or Exchanges if currently active */}
-            {(currentTab === 'requests' || currentTab === 'exchanges') && (
+            {/* Quick Context Subheader for Requests if currently active */}
+            {currentTab === 'requests' && (
               <div className="bg-[#EEF2FF] dark:bg-slate-900 px-4 py-2 flex items-center justify-between border-b border-[#E0E7FF] dark:border-slate-800 text-xs transition-colors duration-200">
                 <span className="font-bold text-[#4F46E5] dark:text-cyan-400">
-                  {currentTab === 'requests' ? '⚡ Campus Alert Radar' : '🤝 Campus Handover Safety'}
+                  ⚡ Campus Alert Radar
                 </span>
                 <button
                   onClick={() => setCurrentTab('home')}
@@ -1152,6 +1157,7 @@ const toLocalDateString = (d: Date) =>
                     setCurrentTab('search');
                   }}
                   onOpenFullPhoto={(listing) => setFullPhotoImageListing(listing)}
+                  onOpenCreateRequest={() => setIsCreateRequestOpen(true)}
                 />
               )}
 
@@ -1164,6 +1170,7 @@ const toLocalDateString = (d: Date) =>
                   onBack={() => setCurrentTab('home')}
                   onSelectListing={(listing) => setSelectedListingDetail(listing)}
                   onOpenFullPhoto={(listing) => setFullPhotoImageListing(listing)}
+                  onOpenCreateRequest={() => setIsCreateRequestOpen(true)}
                 />
               )}
 

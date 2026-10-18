@@ -122,13 +122,7 @@ export const InboxView: React.FC<InboxViewProps> = ({
       <div className="bg-white dark:bg-[#0F172A] border-b border-slate-100 dark:border-slate-800 px-5 py-4">
         <div className="flex items-center justify-between">
           <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-black text-[#0F172A] dark:text-white tracking-tight">Messages</h1>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800/60 text-[10px] font-bold text-emerald-700 dark:text-emerald-400">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span>Live Socket</span>
-              </span>
-            </div>
+            <h1 className="text-xl font-black text-[#0F172A] dark:text-white tracking-tight">Messages</h1>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
               Real-time student chat across UIET campus
             </p>

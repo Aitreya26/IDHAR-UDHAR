@@ -313,10 +313,6 @@ export const ListingDetailModal: React.FC<ListingDetailModalProps> = ({
                       </span>
                     </div>
                   </div>
-
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/40 text-[#4F46E5] dark:text-cyan-400">
-                    Verified
-                  </span>
                 </div>
 
                 {/* Direct Call & WhatsApp Contact Buttons */}

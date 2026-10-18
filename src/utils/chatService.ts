@@ -265,6 +265,11 @@ class RealtimeCampusService {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status }),
     }).catch(() => {});
+    fetch('/api/listings/status', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, status }),
+    }).catch(() => {});
   }
 
   public deleteListing(id: string) {

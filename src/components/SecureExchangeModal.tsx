@@ -87,10 +87,6 @@ export const SecureExchangeModal: React.FC<SecureExchangeModalProps> = ({
 
         {/* Modal Header */}
         <div>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/60 text-xs text-emerald-700 dark:text-emerald-400 font-bold mb-2">
-            <ShieldCheck className="w-3.5 h-3.5" />
-            <span>Zero-Shipping Campus Protocol</span>
-          </div>
           <h2 className="text-xl sm:text-2xl font-black tracking-tight text-[#0F172A] dark:text-white">
             Schedule Secure Campus Meetup
           </h2>
