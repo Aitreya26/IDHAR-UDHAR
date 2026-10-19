@@ -4,8 +4,9 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { WebSocketServer, WebSocket } from 'ws';
-import type { Listing, CampusRequest, ExchangeSession, ChatMessage, ChatThread, UserModerationRecord } from './src/types.ts';
+import type { Listing, CampusRequest, ExchangeSession, ChatMessage, ChatThread, UserModerationRecord, UserProfile } from './src/types.ts';
 import { INITIAL_LISTINGS, INITIAL_REQUESTS } from './src/data/mockData.ts';
+import { PREDEFINED_ACCOUNTS } from './src/data/predefinedUsers.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -78,6 +79,16 @@ let userModerationMap: Record<string, UserModerationRecord> = {
   'user-rivastik': { userId: 'user-rivastik', isSuspended: false, warnings: [] },
   'user-kushboo': { userId: 'user-kushboo', isSuspended: false, warnings: [] },
 };
+
+// 3.5. Authoritative Registered Student Users
+let serverUsers: Record<string, UserProfile> = {};
+for (const acc of PREDEFINED_ACCOUNTS) {
+  const clean = acc.cleanPhone || acc.phone.replace(/\D/g, '').slice(-10);
+  serverUsers[clean] = acc;
+  if (!userModerationMap[acc.id]) {
+    userModerationMap[acc.id] = { userId: acc.id, isSuspended: false, warnings: [] };
+  }
+}
 
 let adminRemovalLogs: {
   id: string;
@@ -270,6 +281,14 @@ function loadServerState() {
       if (data.userModeration) {
         userModerationMap = { ...userModerationMap, ...data.userModeration };
       }
+      if (data.users && typeof data.users === 'object') {
+        serverUsers = { ...serverUsers, ...data.users };
+        for (const u of Object.values(serverUsers)) {
+          if (u.id && !userModerationMap[u.id]) {
+            userModerationMap[u.id] = { userId: u.id, isSuspended: false, warnings: [] };
+          }
+        }
+      }
       if (Array.isArray(data.adminRemovalLogs)) {
         adminRemovalLogs = data.adminRemovalLogs;
       }
@@ -283,7 +302,7 @@ function loadServerState() {
           messages.set(key, value);
         }
       }
-      console.log(`[SERVER] State loaded from disk: ${serverListings.length} listings, ${threads.size} threads`);
+      console.log(`[SERVER] State loaded from disk: ${serverListings.length} listings, ${threads.size} threads, ${Object.keys(serverUsers).length} registered users`);
     } else {
       saveServerState();
     }
@@ -303,6 +322,7 @@ function saveServerState() {
           exchanges: serverExchanges,
           userModeration: userModerationMap,
           adminRemovalLogs: adminRemovalLogs,
+          users: serverUsers,
           threads: Array.from(threads.entries()),
           messages: Array.from(messages.entries()),
         },
@@ -537,13 +557,13 @@ wss.on('connection', (ws) => {
         if (!text || !senderId || !receiverId) return;
 
         let thread = threads.get(threadId);
-        // Before creating a new thread, check if a thread already exists matching listingId & participants
+        // Before creating a new thread, check if a thread already exists strictly matching listingId & BOTH participants
         if (!thread && listingId) {
           for (const t of threads.values()) {
-            if (
-              (t.listingId === listingId && (t.buyerId === senderId || t.sellerId === senderId)) ||
-              (t.listingId === listingId && (t.buyerId === receiverId || t.sellerId === receiverId))
-            ) {
+            const isParticipantMatch =
+              (t.listingId === listingId && t.buyerId === senderId && t.sellerId === receiverId) ||
+              (t.listingId === listingId && t.buyerId === receiverId && t.sellerId === senderId);
+            if (isParticipantMatch) {
               thread = t;
               threadId = t.id;
               break;
@@ -552,21 +572,40 @@ wss.on('connection', (ws) => {
         }
 
         if (!thread && listingId) {
-          const deterministicId = threadId || `thread-${listingId}-${senderId}`;
+          const listing = serverListings.find((l) => l.id === listingId);
+          const sellerId = msg.sellerId || (listing ? listing.sellerId : receiverId);
+          const buyerId = msg.buyerId || (sellerId === senderId ? receiverId : senderId);
+          const sellerName = msg.sellerName || (sellerId === senderId ? senderName : (msg.receiverName || listing?.sellerName || 'Campus Peer'));
+          const buyerName = msg.buyerName || (buyerId === senderId ? senderName : (msg.receiverName || 'Student'));
+
+          const sellerPhone =
+            msg.sellerPhone ||
+            listing?.sellerPhone ||
+            serverUsers[sellerId.replace('user-', '')]?.phone ||
+            serverUsers[Object.keys(serverUsers).find((k) => serverUsers[k].id === sellerId) || '']?.phone;
+
+          const buyerPhone =
+            msg.buyerPhone ||
+            serverUsers[buyerId.replace('user-', '')]?.phone ||
+            serverUsers[Object.keys(serverUsers).find((k) => serverUsers[k].id === buyerId) || '']?.phone;
+
+          const deterministicId = threadId || `thread-${listingId}-${buyerId}`;
           threadId = deterministicId;
           thread = {
             id: threadId,
             listingId,
-            listingTitle: msg.listingTitle || 'Campus Listing',
-            listingPrice: msg.listingPrice || 0,
-            sellerId: receiverId,
-            sellerName: msg.receiverName || 'Campus Peer',
-            sellerHostel: msg.receiverHostel || 'UIET Hostel',
-            buyerId: senderId,
-            buyerName: senderName,
-            buyerHostel: msg.senderHostel || 'UIET Hostel',
+            listingTitle: msg.listingTitle || listing?.title || 'Campus Listing',
+            listingPrice: msg.listingPrice || listing?.price || 0,
+            sellerId,
+            sellerName,
+            sellerHostel: msg.sellerHostel || msg.receiverHostel || listing?.hostelName || 'UIET Hostel',
+            sellerPhone,
+            buyerId,
+            buyerName,
+            buyerHostel: msg.buyerHostel || msg.senderHostel || 'UIET Hostel',
+            buyerPhone,
             lastMessageText: text,
-            lastMessageTime: 'Just now',
+            lastMessageTime: new Date().toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true }),
             lastMessageSenderId: senderId,
             unreadCount: 1,
             updatedAt: Date.now(),
@@ -585,6 +624,8 @@ wss.on('connection', (ws) => {
           return;
         }
 
+        const formattedTime = new Date().toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true });
+
         const newMsg: ChatMessage = {
           id: msgId,
           clientMsgId: msg.clientMsgId || msgId,
@@ -594,7 +635,7 @@ wss.on('connection', (ws) => {
           senderName,
           receiverId,
           text,
-          timestamp: 'Just now',
+          timestamp: formattedTime,
           createdAt: msg.createdAt || Date.now(),
           read: false,
         };
@@ -604,9 +645,14 @@ wss.on('connection', (ws) => {
 
         if (thread) {
           thread.lastMessageText = text;
-          thread.lastMessageTime = 'Just now';
+          thread.lastMessageTime = formattedTime;
+          // If the reply is from the receiver of previous message, reset unreadCount to 1, otherwise increment
+          if (thread.lastMessageSenderId && thread.lastMessageSenderId !== senderId) {
+            thread.unreadCount = 1;
+          } else {
+            thread.unreadCount = (thread.unreadCount || 0) + 1;
+          }
           thread.lastMessageSenderId = senderId;
-          thread.unreadCount = (thread.unreadCount || 0) + 1;
           thread.updatedAt = Date.now();
           threads.set(thread.id, thread);
         }
@@ -649,9 +695,10 @@ wss.on('connection', (ws) => {
           }
         }
         const thread = threads.get(threadId);
-        if (thread && thread.lastMessageSenderId !== userId) {
+        if (thread) {
           thread.unreadCount = 0;
         }
+        saveServerState();
         broadcastTargeted(
           {
             type: 'MESSAGES_READ',
@@ -757,16 +804,21 @@ wss.on('connection', (ws) => {
   ws.on('close', () => {
     activeSockets.delete(clientMeta);
     if (clientMeta.userId) {
-      const onlineIds = Array.from(activeSockets)
-        .map((c) => c.userId)
-        .filter((id): id is string => !!id);
+      const hasOtherSockets = Array.from(activeSockets).some(
+        (c) => c.userId === clientMeta.userId
+      );
+      if (!hasOtherSockets) {
+        const onlineIds = Array.from(activeSockets)
+          .map((c) => c.userId)
+          .filter((id): id is string => !!id);
 
-      broadcastToAll({
-        type: 'PRESENCE_CHANGE',
-        userId: clientMeta.userId,
-        online: false,
-        onlineUsers: onlineIds,
-      });
+        broadcastToAll({
+          type: 'PRESENCE_CHANGE',
+          userId: clientMeta.userId,
+          online: false,
+          onlineUsers: onlineIds,
+        });
+      }
     }
   });
 });
@@ -938,6 +990,63 @@ app.post('/api/exchanges/reminder', (req, res) => {
   res.json({ success: true, exchangeId });
 });
 
+// ==========================================
+// --- USER REGISTRATION & AUTH PERSISTENCE API ---
+// ==========================================
+
+app.post('/api/users/register', (req, res) => {
+  const profile = req.body as UserProfile;
+  if (!profile || !profile.phone) {
+    return res.status(400).json({ error: 'Valid user profile with phone is required' });
+  }
+  const cleanPhone = profile.phone.replace(/\D/g, '').slice(-10);
+  if (!cleanPhone || cleanPhone.length < 10) {
+    return res.status(400).json({ error: 'Valid 10-digit phone number is required' });
+  }
+
+  const userId = profile.id || `user-${cleanPhone}`;
+  const savedUser: UserProfile = {
+    ...profile,
+    id: userId,
+    phone: profile.phone.startsWith('+91') ? profile.phone : `+91 ${cleanPhone}`,
+  };
+
+  serverUsers[cleanPhone] = savedUser;
+  if (!userModerationMap[userId]) {
+    userModerationMap[userId] = { userId, isSuspended: false, warnings: [] };
+  }
+
+  saveServerState();
+  res.json({ success: true, user: savedUser });
+});
+
+app.get('/api/users/phone/:phone', (req, res) => {
+  const cleanPhone = (req.params.phone || '').replace(/\D/g, '').slice(-10);
+  if (!cleanPhone || cleanPhone.length < 10) {
+    return res.json({ found: false, user: null });
+  }
+
+  let user = serverUsers[cleanPhone];
+  if (!user) {
+    const predefined = PREDEFINED_ACCOUNTS.find(
+      (a) => a.cleanPhone === cleanPhone || a.phone.replace(/\D/g, '').slice(-10) === cleanPhone
+    );
+    if (predefined) {
+      user = predefined;
+      serverUsers[cleanPhone] = predefined;
+    }
+  }
+
+  if (user) {
+    return res.json({ found: true, user });
+  }
+  res.json({ found: false, user: null });
+});
+
+app.get('/api/users', (_req, res) => {
+  res.json(Object.values(serverUsers));
+});
+
 // Chat Threads API
 app.get('/api/chat/threads', (req, res) => {
   const userId = req.query.userId as string;
@@ -985,10 +1094,10 @@ app.post('/api/chat/messages', (req, res) => {
   // Before creating a new thread, check if a thread already exists matching listingId & participants
   if (!thread && listingId) {
     for (const t of threads.values()) {
-      if (
-        (t.listingId === listingId && (t.buyerId === senderId || t.sellerId === senderId)) ||
-        (t.listingId === listingId && (t.buyerId === receiverId || t.sellerId === receiverId))
-      ) {
+      const isParticipantMatch =
+        (t.listingId === listingId && t.buyerId === senderId && t.sellerId === receiverId) ||
+        (t.listingId === listingId && t.buyerId === receiverId && t.sellerId === senderId);
+      if (isParticipantMatch) {
         thread = t;
         effectiveThreadId = t.id;
         break;
@@ -997,21 +1106,40 @@ app.post('/api/chat/messages', (req, res) => {
   }
 
   if (!thread && listingId) {
-    const deterministicId = threadId || `thread-${listingId}-${senderId}`;
+    const listing = serverListings.find((l) => l.id === listingId);
+    const sellerId = req.body.sellerId || (listing ? listing.sellerId : receiverId);
+    const buyerId = req.body.buyerId || (sellerId === senderId ? receiverId : senderId);
+    const sellerName = req.body.sellerName || (sellerId === senderId ? senderName : (receiverName || listing?.sellerName || 'Campus Peer'));
+    const buyerName = req.body.buyerName || (buyerId === senderId ? senderName : (receiverName || 'Student'));
+
+    const sellerPhone =
+      req.body.sellerPhone ||
+      listing?.sellerPhone ||
+      serverUsers[sellerId.replace('user-', '')]?.phone ||
+      serverUsers[Object.keys(serverUsers).find((k) => serverUsers[k].id === sellerId) || '']?.phone;
+
+    const buyerPhone =
+      req.body.buyerPhone ||
+      serverUsers[buyerId.replace('user-', '')]?.phone ||
+      serverUsers[Object.keys(serverUsers).find((k) => serverUsers[k].id === buyerId) || '']?.phone;
+
+    const deterministicId = threadId || `thread-${listingId}-${buyerId}`;
     effectiveThreadId = deterministicId;
     thread = {
       id: effectiveThreadId,
       listingId,
-      listingTitle: listingTitle || 'Campus Listing',
-      listingPrice: Number(listingPrice) || 0,
-      sellerId: receiverId,
-      sellerName: receiverName || 'Campus Peer',
-      sellerHostel: receiverHostel || 'UIET Hostel',
-      buyerId: senderId,
-      buyerName: senderName || 'Student',
+      listingTitle: listingTitle || listing?.title || 'Campus Listing',
+      listingPrice: Number(listingPrice) || listing?.price || 0,
+      sellerId,
+      sellerName,
+      sellerHostel: receiverHostel || listing?.hostelName || 'UIET Hostel',
+      sellerPhone,
+      buyerId,
+      buyerName,
       buyerHostel: senderHostel || 'UIET Hostel',
+      buyerPhone,
       lastMessageText: text,
-      lastMessageTime: 'Just now',
+      lastMessageTime: new Date().toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true }),
       lastMessageSenderId: senderId,
       unreadCount: 1,
       updatedAt: Date.now(),
@@ -1030,6 +1158,8 @@ app.post('/api/chat/messages', (req, res) => {
     return res.json({ success: true, message: existing, duplicate: true });
   }
 
+  const formattedTime = new Date().toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true });
+
   const newMsg: ChatMessage = {
     id: msgId,
     clientMsgId: clientMsgId || msgId,
@@ -1039,7 +1169,7 @@ app.post('/api/chat/messages', (req, res) => {
     senderName,
     receiverId,
     text,
-    timestamp: 'Just now',
+    timestamp: formattedTime,
     createdAt: createdAt || Date.now(),
     read: false,
   };
@@ -1049,9 +1179,13 @@ app.post('/api/chat/messages', (req, res) => {
 
   if (thread) {
     thread.lastMessageText = text;
-    thread.lastMessageTime = 'Just now';
+    thread.lastMessageTime = formattedTime;
+    if (thread.lastMessageSenderId && thread.lastMessageSenderId !== senderId) {
+      thread.unreadCount = 1;
+    } else {
+      thread.unreadCount = (thread.unreadCount || 0) + 1;
+    }
     thread.lastMessageSenderId = senderId;
-    thread.unreadCount = (thread.unreadCount || 0) + 1;
     thread.updatedAt = Date.now();
     threads.set(thread.id, thread);
   }

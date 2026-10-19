@@ -156,8 +156,24 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
     const unsubscribe = chatService.subscribe((event) => {
       if (event.type === 'NEW_MESSAGE') {
-        const { message } = event.payload;
-        if (message && message.threadId === activeThread.id) {
+        const { message, thread: incomingThread } = event.payload;
+
+        let isMatchingThread = false;
+        if (activeThread && message) {
+          if (message.threadId === activeThread.id) {
+            isMatchingThread = true;
+          } else if (
+            incomingThread &&
+            incomingThread.listingId === activeThread.listingId &&
+            ((incomingThread.buyerId === currentUser.id && incomingThread.sellerId === peerId) ||
+             (incomingThread.buyerId === peerId && incomingThread.sellerId === currentUser.id))
+          ) {
+            isMatchingThread = true;
+            setActiveThread(incomingThread);
+          }
+        }
+
+        if (message && isMatchingThread) {
           setMessages((prev) => {
             // 1. Direct ID / clientMsgId match - replace optimistic or update in place
             const existingIdx = prev.findIndex(
@@ -270,7 +286,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
       senderName: currentUser.fullName,
       receiverId: peerId,
       text,
-      timestamp: 'Just now',
+      timestamp: new Date().toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true }),
       createdAt: Date.now(),
       read: false,
     };
@@ -287,6 +303,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
       senderId: currentUser.id,
       senderName: currentUser.fullName,
       receiverId: peerId,
+      sellerId: activeThread.sellerId,
+      buyerId: activeThread.buyerId,
+      sellerPhone: listing?.sellerPhone || activeThread.sellerPhone,
+      buyerPhone: currentUser.phone || activeThread.buyerPhone,
       listingId: activeThread.listingId,
       listingTitle: itemTitle,
       listingPrice: itemPrice,

@@ -9,36 +9,30 @@ service cloud.firestore {
 
     // User profiles
     match /users/{userId} {
-      allow read: if true;
-      allow create, update: if request.auth != null && request.auth.uid == userId;
-      allow delete: if request.auth != null && request.auth.uid == userId;
+      allow read, write: if true;
     }
 
     // Campus Marketplace Listings
     match /listings/{listingId} {
-      allow read: if true;
-      allow create: if request.auth != null;
-      allow update, delete: if request.auth != null && (resource.data.sellerId == request.auth.uid || request.auth.uid == request.resource.data.sellerId);
+      allow read, write: if true;
     }
 
     // Urgent Hostel Requests ("Request Daalna")
     match /requests/{requestId} {
-      allow read: if true;
-      allow create: if request.auth != null;
-      allow update, delete: if request.auth != null && (resource.data.requesterId == request.auth.uid || request.auth.uid == request.resource.data.requesterId);
+      allow read, write: if true;
     }
 
     // Campus Handover Sessions
     match /exchanges/{exchangeId} {
-      allow read, write: if request.auth != null;
+      allow read, write: if true;
     }
 
     // Chat Threads & Messages
     match /threads/{threadId} {
-      allow read, write: if request.auth != null;
+      allow read, write: if true;
 
       match /messages/{messageId} {
-        allow read, write: if request.auth != null;
+        allow read, write: if true;
       }
     }
   }

@@ -1339,6 +1339,11 @@ const toLocalDateString = (d: Date) =>
                   setGuestNotice({ isOpen: true, intent: 'message' });
                   return;
                 }
+                if (currentUser && (listing.sellerId === currentUser.id || (currentUser.phone && listing.sellerPhone && currentUser.phone.replace(/\D/g, '').slice(-10) === listing.sellerPhone.replace(/\D/g, '').slice(-10)))) {
+                  setSelectedListingDetail(null);
+                  setCurrentTab('inbox');
+                  return;
+                }
                 setSelectedListingDetail(null);
                 setActiveChatThread(null);
                 setActiveChatListing(listing);
@@ -1347,6 +1352,9 @@ const toLocalDateString = (d: Date) =>
               onInitiateExchange={(listing) => {
                 if (isGuestMode) {
                   setGuestNotice({ isOpen: true, intent: 'buy' });
+                  return;
+                }
+                if (currentUser && (listing.sellerId === currentUser.id || (currentUser.phone && listing.sellerPhone && currentUser.phone.replace(/\D/g, '').slice(-10) === listing.sellerPhone.replace(/\D/g, '').slice(-10)))) {
                   return;
                 }
                 setSelectedListingDetail(null);

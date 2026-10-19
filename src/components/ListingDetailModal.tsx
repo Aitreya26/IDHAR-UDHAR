@@ -72,7 +72,17 @@ export const ListingDetailModal: React.FC<ListingDetailModalProps> = ({
 
   if (!isOpen || !listing) return null;
 
+  const isMyListing = Boolean(
+    currentUser &&
+    listing &&
+    (
+      listing.sellerId === currentUser.id ||
+      (currentUser.phone && listing.sellerPhone && currentUser.phone.replace(/\D/g, '').slice(-10) === listing.sellerPhone.replace(/\D/g, '').slice(-10))
+    )
+  );
+
   const handleAction = (intent: 'buy' | 'message', action: () => void) => {
+    if (isMyListing) return;
     if (isGuest) {
       if (onRequireAuth) {
         onRequireAuth(intent);
@@ -83,6 +93,7 @@ export const ListingDetailModal: React.FC<ListingDetailModalProps> = ({
   };
 
   const handleOpenReportDialog = () => {
+    if (isMyListing) return;
     setReportSubmitted(false);
     setReportDetails('');
     setReportReason('spam');
@@ -96,6 +107,7 @@ export const ListingDetailModal: React.FC<ListingDetailModalProps> = ({
 
   const handleSubmitReport = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isMyListing) return;
     setReportSubmitted(true);
     if (onReportListing) {
       onReportListing(listing, reportReason, reportDetails);
@@ -129,18 +141,19 @@ export const ListingDetailModal: React.FC<ListingDetailModalProps> = ({
               <ChevronLeft className="w-6 h-6 -ml-0.5" />
             </button>
 
-            {/* Top Right Action Buttons: View Full Photo & Report */}
+            {/* Top Right Action Buttons: View Full Photo & Report (Only if not own listing) */}
             <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
-              {/* Report Listing Button on Image */}
-              <button
-                type="button"
-                onClick={handleOpenReportDialog}
-                className="px-2.5 py-1.5 rounded-full bg-slate-900/80 hover:bg-rose-950/90 text-rose-300 hover:text-rose-200 backdrop-blur-md text-xs font-bold shadow-lg flex items-center gap-1 transition-all cursor-pointer border border-rose-500/30 active:scale-95"
-                title="Report Listing"
-              >
-                <Flag className="w-3.5 h-3.5 text-rose-400" />
-                <span className="hidden xs:inline">Report</span>
-              </button>
+              {!isMyListing && (
+                <button
+                  type="button"
+                  onClick={handleOpenReportDialog}
+                  className="px-2.5 py-1.5 rounded-full bg-slate-900/80 hover:bg-rose-950/90 text-rose-300 hover:text-rose-200 backdrop-blur-md text-xs font-bold shadow-lg flex items-center gap-1 transition-all cursor-pointer border border-rose-500/30 active:scale-95"
+                  title="Report Listing"
+                >
+                  <Flag className="w-3.5 h-3.5 text-rose-400" />
+                  <span className="hidden xs:inline">Report</span>
+                </button>
+              )}
 
               {/* View Full Photo Button */}
               <button
@@ -289,8 +302,12 @@ export const ListingDetailModal: React.FC<ListingDetailModalProps> = ({
               
               <div className="p-3.5 rounded-2xl bg-[#F8FAFC] dark:bg-[#1E293B] border border-slate-100 dark:border-slate-800 space-y-3">
                 <div 
-                  onClick={() => handleAction('message', () => onOpenChat(listing))}
-                  className="flex items-center justify-between cursor-pointer group"
+                  onClick={() => {
+                    if (!isMyListing) {
+                      handleAction('message', () => onOpenChat(listing));
+                    }
+                  }}
+                  className={`flex items-center justify-between ${isMyListing ? '' : 'cursor-pointer group'}`}
                 >
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-[#EDE9FE] dark:bg-indigo-950/60 flex items-center justify-center font-bold text-[#4F46E5] dark:text-cyan-400 text-sm">
@@ -298,7 +315,7 @@ export const ListingDetailModal: React.FC<ListingDetailModalProps> = ({
                     </div>
                     <div>
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <h4 className="text-sm font-bold text-[#0F172A] dark:text-white group-hover:text-[#4F46E5] dark:group-hover:text-cyan-400 transition-colors">
+                        <h4 className="text-sm font-bold text-[#0F172A] dark:text-white transition-colors">
                           {listing.sellerName}
                         </h4>
                         <ShieldCheck className="w-4 h-4 text-emerald-500" />
@@ -313,32 +330,51 @@ export const ListingDetailModal: React.FC<ListingDetailModalProps> = ({
                       </span>
                     </div>
                   </div>
+
+                  {isMyListing && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-[#4F46E5] dark:text-cyan-400 border border-indigo-100 dark:border-indigo-900/50">
+                      Your Listing
+                    </span>
+                  )}
                 </div>
 
-                {/* Direct Call & WhatsApp Contact Buttons */}
-                <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-100 dark:border-slate-800/80">
-                  <a
-                    href={listing.sellerPhone ? `tel:${listing.sellerPhone.replace(/\D/g, '')}` : '#'}
-                    className="py-2.5 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer text-center"
-                    title={`Direct Call: ${listing.sellerPhone}`}
-                  >
-                    <Phone className="w-3.5 h-3.5 text-[#4F46E5] dark:text-cyan-400 shrink-0" />
-                    <span>Direct Call</span>
-                  </a>
+                {/* Direct Call & WhatsApp Contact Buttons or Seller Notice */}
+                {isMyListing ? (
+                  <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80">
+                    <div className="py-2.5 px-3 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/40 flex items-center justify-between text-xs">
+                      <span className="font-medium text-slate-600 dark:text-slate-300">
+                        You posted this item for campus students
+                      </span>
+                      <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
+                        Active Post
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-100 dark:border-slate-800/80">
+                    <a
+                      href={listing.sellerPhone ? `tel:${listing.sellerPhone.replace(/\D/g, '')}` : '#'}
+                      className="py-2.5 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer text-center"
+                      title={`Direct Call: ${listing.sellerPhone}`}
+                    >
+                      <Phone className="w-3.5 h-3.5 text-[#4F46E5] dark:text-cyan-400 shrink-0" />
+                      <span>Direct Call</span>
+                    </a>
 
-                  <a
-                    href={listing.sellerPhone ? `https://wa.me/91${listing.sellerPhone.replace(/\D/g, '').slice(-10)}?text=${encodeURIComponent(
-                      `Hi ${listing.sellerName}! I saw your IDHAR-UDHAR listing for "${listing.title}" (₹${listing.price}) in ${listing.hostelName}. Is this still available?`
-                    )}` : '#'}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="py-2.5 px-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 border border-emerald-200 dark:border-emerald-800/60 text-emerald-700 dark:text-emerald-300 font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer text-center"
-                    title={`WhatsApp: ${listing.sellerPhone}`}
-                  >
-                    <MessageSquare className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                    <span>WhatsApp</span>
-                  </a>
-                </div>
+                    <a
+                      href={listing.sellerPhone ? `https://wa.me/91${listing.sellerPhone.replace(/\D/g, '').slice(-10)}?text=${encodeURIComponent(
+                        `Hi ${listing.sellerName}! I saw your IDHAR-UDHAR listing for "${listing.title}" (₹${listing.price}) in ${listing.hostelName}. Is this still available?`
+                      )}` : '#'}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="py-2.5 px-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 border border-emerald-200 dark:border-emerald-800/60 text-emerald-700 dark:text-emerald-300 font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer text-center"
+                      title={`WhatsApp: ${listing.sellerPhone}`}
+                    >
+                      <MessageSquare className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                      <span>WhatsApp</span>
+                    </a>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -402,40 +438,59 @@ export const ListingDetailModal: React.FC<ListingDetailModalProps> = ({
             )}
 
             {/* Dedicated Report Listing Action Section */}
-            <div className="pt-3 pb-1 flex items-center justify-between border-t border-slate-100 dark:border-slate-800/80">
-              <div className="flex items-center gap-1.5 text-[11px] text-slate-400 dark:text-slate-500">
-                <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                <span>Notice inappropriate or spam content?</span>
+            {!isMyListing && (
+              <div className="pt-3 pb-1 flex items-center justify-between border-t border-slate-100 dark:border-slate-800/80">
+                <div className="flex items-center gap-1.5 text-[11px] text-slate-400 dark:text-slate-500">
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                  <span>Notice inappropriate or spam content?</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleOpenReportDialog}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/50 border border-rose-200 dark:border-rose-900/60 transition-all cursor-pointer active:scale-95 shadow-xs"
+                >
+                  <Flag className="w-3.5 h-3.5 text-rose-500" />
+                  <span>Report Listing</span>
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={handleOpenReportDialog}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/50 border border-rose-200 dark:border-rose-900/60 transition-all cursor-pointer active:scale-95 shadow-xs"
-              >
-                <Flag className="w-3.5 h-3.5 text-rose-500" />
-                <span>Report Listing</span>
-              </button>
-            </div>
+            )}
           </div>
         </div>
 
         {/* Bottom Action Bar */}
         <div className="sticky bottom-0 bg-white/95 dark:bg-[#0F172A]/95 backdrop-blur-md p-4 border-t border-slate-100 dark:border-slate-800 flex items-center gap-2.5">
-          <button
-            onClick={() => handleAction('buy', () => onInitiateExchange(listing))}
-            className="flex-1 py-3.5 px-3 bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-400 text-white dark:text-slate-950 font-bold text-xs sm:text-sm rounded-2xl shadow-md transition-all active:scale-[0.98] flex items-center justify-center gap-1.5 cursor-pointer"
-          >
-            <Handshake className="w-4 h-4 shrink-0" />
-            <span className="truncate">{listing.listingType === 'rent' ? 'Rent Item' : 'Buy Now'} (₹{listing.price})</span>
-          </button>
+          {isMyListing ? (
+            <div className="w-full py-3 px-4 rounded-2xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/50 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Tag className="w-4 h-4 text-[#4F46E5] dark:text-cyan-400 shrink-0" />
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
+                  This is your listing
+                </span>
+              </div>
+              <span className="text-xs font-black text-[#4F46E5] dark:text-cyan-400 font-mono">
+                ₹{listing.price.toLocaleString('en-IN')}
+                {listing.listingType === 'rent' ? `/${listing.rentPeriod || 'mo'}` : ''}
+              </span>
+            </div>
+          ) : (
+            <>
+              <button
+                onClick={() => handleAction('buy', () => onInitiateExchange(listing))}
+                className="flex-1 py-3.5 px-3 bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-400 text-white dark:text-slate-950 font-bold text-xs sm:text-sm rounded-2xl shadow-md transition-all active:scale-[0.98] flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Handshake className="w-4 h-4 shrink-0" />
+                <span className="truncate">{listing.listingType === 'rent' ? 'Rent Item' : 'Buy Now'} (₹{listing.price})</span>
+              </button>
 
-          <button
-            onClick={() => handleAction('message', () => onOpenChat(listing))}
-            className="flex-1 py-3.5 px-3 bg-[#4F46E5] hover:bg-[#4338CA] dark:bg-cyan-500 dark:hover:bg-cyan-400 text-white dark:text-slate-950 font-bold text-xs sm:text-sm rounded-2xl shadow-md transition-all active:scale-[0.98] flex items-center justify-center gap-1.5 cursor-pointer"
-          >
-            <MessageSquare className="w-4 h-4 shrink-0" />
-            <span className="truncate">Message on App</span>
-          </button>
+              <button
+                onClick={() => handleAction('message', () => onOpenChat(listing))}
+                className="flex-1 py-3.5 px-3 bg-[#4F46E5] hover:bg-[#4338CA] dark:bg-cyan-500 dark:hover:bg-cyan-400 text-white dark:text-slate-950 font-bold text-xs sm:text-sm rounded-2xl shadow-md transition-all active:scale-[0.98] flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <MessageSquare className="w-4 h-4 shrink-0" />
+                <span className="truncate">Message on App</span>
+              </button>
+            </>
+          )}
         </div>
       </div>
 

@@ -365,25 +365,6 @@ export const CreateListingModal: React.FC<CreateListingModalProps> = ({
               placeholder="e.g. Semester finished, Upgraded, Hostel clearance, Not using anymore"
               className="w-full px-4 py-3 bg-[#F8FAFC] dark:bg-slate-900 border border-[#E2E8F0] dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-100 text-sm focus:outline-none focus:border-[#4F46E5] dark:focus:border-cyan-400 focus:bg-white dark:focus:bg-slate-800"
             />
-            {/* Quick Chips */}
-            <div className="flex flex-wrap gap-1.5 mt-2">
-              {[
-                'Semester Completed',
-                'Subject Exam Over',
-                'Upgrading Equipment',
-                'Room Clearance',
-                'Spare Item / Not in Use'
-              ].map((suggestion) => (
-                <button
-                  key={suggestion}
-                  type="button"
-                  onClick={() => setReasonForSelling(suggestion)}
-                  className="px-2.5 py-1 rounded-lg text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors cursor-pointer"
-                >
-                  {suggestion}
-                </button>
-              ))}
-            </div>
           </div>
 
           {/* CONDITION */}

@@ -14,7 +14,10 @@ import {
   setDoc, 
   getDocFromServer,
   collection,
-  onSnapshot
+  onSnapshot,
+  query,
+  where,
+  getDocs
 } from 'firebase/firestore';
 import { UserProfile } from './types';
 
@@ -116,7 +119,33 @@ export async function verifyFirebasePhoneOtp(
 // --- FIRESTORE USER PROFILE PERSISTENCE ---
 // ==========================================
 
+import { PREDEFINED_ACCOUNTS, findPredefinedAccountByPhone } from './data/predefinedUsers';
+import { safeStorage } from './utils/storage';
+
+const REGISTERED_USERS_KEY = 'idhar_udhar_registered_users';
+
+function getLocalRegisteredUsers(): Record<string, UserProfile> {
+  return safeStorage.getJSON<Record<string, UserProfile>>(REGISTERED_USERS_KEY, {}) || {};
+}
+
+function saveLocalRegisteredUser(cleanPhone: string, profile: UserProfile) {
+  try {
+    const existing = getLocalRegisteredUsers();
+    existing[cleanPhone] = profile;
+    safeStorage.setJSON(REGISTERED_USERS_KEY, existing);
+  } catch {}
+}
+
 export async function fetchFirestoreUserProfile(uid: string): Promise<UserProfile | null> {
+  const clean = uid.replace('user-', '').replace(/\D/g, '').slice(-10);
+  if (clean && clean.length === 10) {
+    const byPhone = await fetchFirestoreUserProfileByPhone(clean);
+    if (byPhone) return byPhone;
+  }
+
+  const predefined = PREDEFINED_ACCOUNTS.find((a) => a.id === uid);
+  if (predefined) return predefined;
+
   try {
     const userDoc = await getDoc(doc(db, 'users', uid));
     if (userDoc.exists()) {
@@ -128,9 +157,85 @@ export async function fetchFirestoreUserProfile(uid: string): Promise<UserProfil
   return null;
 }
 
-export async function saveFirestoreUserProfile(profile: UserProfile): Promise<void> {
+export async function fetchFirestoreUserProfileByPhone(phoneInput: string): Promise<UserProfile | null> {
+  const clean = phoneInput.replace(/\D/g, '').slice(-10);
+  if (!clean) return null;
+
+  // a) PREDEFINED_ACCOUNTS first
+  const predefined = findPredefinedAccountByPhone(clean);
+  if (predefined) return predefined;
+
+  // b) GET /api/users/phone/${clean} from Express server
   try {
-    await setDoc(doc(db, 'users', profile.id), profile, { merge: true });
+    const res = await fetch(`/api/users/phone/${encodeURIComponent(clean)}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.found && data.user) {
+        saveLocalRegisteredUser(clean, data.user);
+        return data.user;
+      }
+    }
+  } catch (err) {
+    console.warn('Error checking user via server API:', err);
+  }
+
+  // c) 'idhar_udhar_registered_users' dictionary in safeStorage
+  const localMap = getLocalRegisteredUsers();
+  if (localMap[clean]) {
+    return localMap[clean];
+  }
+
+  // d) Firebase Firestore
+  try {
+    const docId = `user-${clean}`;
+    const userDoc = await getDoc(doc(db, 'users', docId));
+    if (userDoc.exists()) {
+      const data = userDoc.data() as UserProfile;
+      saveLocalRegisteredUser(clean, data);
+      return data;
+    }
+
+    const usersCol = collection(db, 'users');
+    const q1 = query(usersCol, where('phone', 'in', [clean, `+91 ${clean}`, `+91${clean}`]));
+    const snap1 = await getDocs(q1);
+    if (!snap1.empty) {
+      const data = snap1.docs[0].data() as UserProfile;
+      saveLocalRegisteredUser(clean, data);
+      return data;
+    }
+  } catch (err) {
+    console.warn('Error querying user by phone in Firestore:', err);
+  }
+
+  return null;
+}
+
+export async function saveFirestoreUserProfile(profile: UserProfile): Promise<void> {
+  const cleanPhone = (profile.phone || '').replace(/\D/g, '').slice(-10);
+
+  // a) Save user into 'idhar_udhar_registered_users' map in safeStorage
+  if (cleanPhone) {
+    saveLocalRegisteredUser(cleanPhone, profile);
+  }
+
+  // b) Send POST /api/users/register to backend server
+  try {
+    await fetch('/api/users/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(profile),
+    });
+  } catch (err) {
+    console.warn('Could not sync user registration with server API:', err);
+  }
+
+  // c) Save document to Firestore under users/user-${cleanPhone} and users/${profile.id}
+  try {
+    const docId = cleanPhone ? `user-${cleanPhone}` : profile.id;
+    await setDoc(doc(db, 'users', docId), profile, { merge: true });
+    if (profile.id && profile.id !== docId) {
+      await setDoc(doc(db, 'users', profile.id), profile, { merge: true });
+    }
   } catch (err) {
     console.warn('Error saving user profile to Firestore:', err);
   }

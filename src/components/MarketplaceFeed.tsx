@@ -15,7 +15,8 @@ import {
   SlidersHorizontal,
   ShieldCheck,
   AlertCircle,
-  Bell
+  Bell,
+  User
 } from 'lucide-react';
 
 interface MarketplaceFeedProps {
@@ -279,25 +280,11 @@ export const MarketplaceFeed: React.FC<MarketplaceFeedProps> = ({
                     </span>
                   </div>
 
-                  {/* Cost price savings tag if available */}
-                  {!isSold && item.originalCostPrice && item.originalCostPrice > item.price && (
-                    <div className="flex items-center gap-1.5 text-[10px] pt-0.5">
-                      <span className="text-slate-400 line-through font-mono">₹{item.originalCostPrice}</span>
-                      <span className="text-emerald-600 dark:text-emerald-400 font-extrabold font-mono text-[9px] bg-emerald-50 dark:bg-emerald-950/60 px-1 rounded">
-                        -{Math.round(((item.originalCostPrice - item.price) / item.originalCostPrice) * 100)}%
-                      </span>
-                    </div>
-                  )}
-
-                  {/* TRUSTWORTHY SELLER Tag */}
-                  {!isSold && getSellerReputation(item.sellerId).isTrustworthy && (
-                    <div className="pt-1">
-                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-[9px] font-black uppercase tracking-wider">
-                        <ShieldCheck className="w-2.5 h-2.5 text-emerald-500" />
-                        <span>TRUSTWORTHY SELLER</span>
-                      </span>
-                    </div>
-                  )}
+                  {/* Seller Name (Replacing saved %, cut-out original price, and trustworthy seller tag) */}
+                  <div className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400 truncate pt-0.5">
+                    <User className="w-3 h-3 text-slate-400 dark:text-slate-500 shrink-0" />
+                    <span className="font-medium truncate">{item.sellerName}</span>
+                  </div>
                 </div>
               </div>
             );

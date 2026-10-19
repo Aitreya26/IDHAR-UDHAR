@@ -865,11 +865,16 @@ export const MyListingsView: React.FC<MyListingsViewProps> = ({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">
-                    Hostel Bhawan
+                    Hostel / Living Status
                   </label>
                   <select
                     value={editHostel}
-                    onChange={(e) => setEditHostel(e.target.value)}
+                    onChange={(e) => {
+                      setEditHostel(e.target.value);
+                      if (e.target.value === 'Day Scholar' && !editRoom) {
+                        setEditRoom('Day Scholar');
+                      }
+                    }}
                     className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-[#4F46E5]"
                   >
                     {COLLEGES[0]?.hostels.map((h) => (
@@ -881,15 +886,15 @@ export const MyListingsView: React.FC<MyListingsViewProps> = ({
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">
-                    Room Number
+                    {editHostel === 'Day Scholar' ? 'Area / Locality' : 'Room Number'}
                   </label>
                   <input
                     type="text"
-                    required
+                    required={editHostel !== 'Day Scholar'}
                     value={editRoom}
                     onChange={(e) => setEditRoom(e.target.value)}
                     className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-[#4F46E5]"
-                    placeholder="e.g. Room 108"
+                    placeholder={editHostel === 'Day Scholar' ? 'e.g. Local (Day Scholar)' : 'e.g. Room 108'}
                   />
                 </div>
               </div>

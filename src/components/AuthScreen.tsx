@@ -7,9 +7,11 @@ import {
   sendFirebasePhoneOtp, 
   verifyFirebasePhoneOtp, 
   fetchFirestoreUserProfile, 
+  fetchFirestoreUserProfileByPhone,
   saveFirestoreUserProfile,
   firebaseConfig
 } from '../firebase';
+import { safeStorage } from '../utils/storage';
 import { ConfirmationResult } from 'firebase/auth';
 import { 
   Store, 
@@ -20,6 +22,7 @@ import {
   KeyRound, 
   Building, 
   User, 
+  UserPlus,
   Sparkles, 
   AlertCircle,
   AlertTriangle,
@@ -88,6 +91,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   const [realOtpNotice, setRealOtpNotice] = useState<string>('');
   const [isPredefinedUser, setIsPredefinedUser] = useState(false);
   const [copiedOtp, setCopiedOtp] = useState(false);
+  const [unregisteredErrorPhone, setUnregisteredErrorPhone] = useState<string>('');
 
   const otpInputRefs = [
     useRef<HTMLInputElement>(null),
@@ -119,9 +123,23 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
     setOtpError('');
     setIsSendingOtp(true);
     setRealOtpNotice('');
+    setUnregisteredErrorPhone('');
 
-    // 1. Check if phone matches predefined UIET student accounts
+    // 1. Check if phone exists in PREDEFINED_ACCOUNTS or Firestore
     const predefined = findPredefinedAccountByPhone(cleanPhone);
+    let existingProfile: UserProfile | null = null;
+
+    if (!predefined) {
+      existingProfile = await fetchFirestoreUserProfileByPhone(cleanPhone);
+    }
+
+    // Gatekeeper: Reject unregistered phone numbers
+    if (!predefined && !existingProfile) {
+      setIsSendingOtp(false);
+      setUnregisteredErrorPhone(cleanPhone);
+      return;
+    }
+
     if (predefined) {
       setIsPredefinedUser(true);
       setGeneratedOtp(predefined.otp);
@@ -282,22 +300,15 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
       if (data && data.success) {
         let profile = await fetchFirestoreUserProfile(`user-${cleanPhone}`);
         if (!profile) {
-          profile = {
-            id: `user-${cleanPhone}`,
-            fullName: 'UIET Student',
-            gender: 'Male',
-            phone: `+91 ${cleanPhone}`,
-            rollNumber: `12411${cleanPhone.slice(-3)}`,
-            collegeId: 'uiet-kurukshetra',
-            collegeName: 'UIET Kurukshetra',
-            hostelName: 'Shaheed Bhagat Singh Bhawan',
-            roomNumber: 'Room 204',
-            course: 'B.Tech CSE',
-            year: '1st Year',
-            avatarSeed: `student-${cleanPhone.slice(-4)}`,
-            joinedDate: 'Verified Student'
-          };
-          await saveFirestoreUserProfile(profile);
+          profile = await fetchFirestoreUserProfileByPhone(cleanPhone);
+        }
+        if (!profile) {
+          setIsVerifyingOtp(false);
+          setPhoneNumber(cleanPhone);
+          setSignupError('Please complete your one-time profile registration');
+          setOtpSent(false);
+          setActiveTab('signup');
+          return;
         }
         onLoginSuccess(profile);
         return;
@@ -315,22 +326,15 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
     if (isDirectMatch) {
       let profile = await fetchFirestoreUserProfile(`user-${cleanPhone}`);
       if (!profile) {
-        profile = {
-          id: `user-${cleanPhone}`,
-          fullName: 'UIET Student',
-          gender: 'Male',
-          phone: `+91 ${cleanPhone}`,
-          rollNumber: `12411${cleanPhone.slice(-3)}`,
-          collegeId: 'uiet-kurukshetra',
-          collegeName: 'UIET Kurukshetra',
-          hostelName: 'Shaheed Bhagat Singh Bhawan',
-          roomNumber: 'Room 204',
-          course: 'B.Tech CSE',
-          year: '1st Year',
-          avatarSeed: `student-${cleanPhone.slice(-4)}`,
-          joinedDate: 'Verified 1st Year'
-        };
-        await saveFirestoreUserProfile(profile);
+        profile = await fetchFirestoreUserProfileByPhone(cleanPhone);
+      }
+      if (!profile) {
+        setIsVerifyingOtp(false);
+        setPhoneNumber(cleanPhone);
+        setSignupError('Please complete your one-time profile registration');
+        setOtpSent(false);
+        setActiveTab('signup');
+        return;
       }
       onLoginSuccess(profile);
       return;
@@ -364,7 +368,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
       setSignupError('Please enter your college roll number');
       return;
     }
-    const cleanPhone = phoneNumber.replace(/\D/g, '');
+    const cleanPhone = phoneNumber.replace(/\D/g, '').slice(-10);
     if (cleanPhone.length < 10) {
       setSignupError('Please enter a valid 10-digit mobile number');
       return;
@@ -372,26 +376,37 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
 
     setIsSigningUp(true);
 
+    // Check if phone number is already registered
+    const existingPredefined = findPredefinedAccountByPhone(cleanPhone);
+    const existingProfile = existingPredefined || (await fetchFirestoreUserProfileByPhone(cleanPhone));
+    if (existingProfile) {
+      setIsSigningUp(false);
+      onLoginSuccess(existingProfile);
+      return;
+    }
+
     const matchedCollege = COLLEGES.find(c => c.name.toLowerCase().includes(collegeName.toLowerCase())) || COLLEGES[0];
     const isGirlsHostel = GIRLS_HOSTELS.includes(hostelName as any);
-    const userId = `user-fb-${Date.now()}`;
+    const userId = `user-${cleanPhone}`;
     const user: UserProfile = {
       id: userId,
       fullName: fullName.trim(),
       gender: isGirlsHostel ? 'Female' : 'Male',
-      phone: `+91 ${cleanPhone.slice(-10)}`,
+      phone: `+91 ${cleanPhone}`,
       rollNumber: rollNumber.trim(),
       collegeId: matchedCollege.id,
       collegeName: collegeName.trim() || 'UIET Kurukshetra',
       hostelName: hostelName,
-      roomNumber: roomNumber.trim().startsWith('Room') ? roomNumber.trim() : (roomNumber.trim() ? `Room ${roomNumber.trim()}` : 'Room 101'),
+      roomNumber: hostelName === 'Day Scholar' 
+        ? (roomNumber.trim() || 'Day Scholar') 
+        : (roomNumber.trim().startsWith('Room') ? roomNumber.trim() : (roomNumber.trim() ? `Room ${roomNumber.trim()}` : 'Room 101')),
       course: course.trim() || 'B.Tech CSE',
       year: year.includes('Year') ? year : `${year} Year`,
       avatarSeed: fullName.toLowerCase().replace(/\s+/g, '-'),
       joinedDate: 'Verified Student'
     };
 
-    // Save student profile to Firebase Firestore
+    // Save student profile across Server, safeStorage, and Firestore
     await saveFirestoreUserProfile(user);
     setIsSigningUp(false);
     onLoginSuccess(user);
@@ -579,6 +594,30 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                   </div>
                 )}
 
+                {unregisteredErrorPhone && (
+                  <div className="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800/80 space-y-2.5 animate-in fade-in duration-150">
+                    <div className="flex items-start gap-2 text-xs font-medium text-amber-900 dark:text-amber-200 leading-relaxed">
+                      <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                      <span>
+                        No registered student account was found with this mobile number (+91 {unregisteredErrorPhone}). Please switch to 'Register Profile' to create your verified campus account before logging in.
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPhoneNumber(unregisteredErrorPhone);
+                        setUnregisteredErrorPhone('');
+                        setSignupError('');
+                        setActiveTab('signup');
+                      }}
+                      className="w-full py-2 px-3 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-xs cursor-pointer transition-all active:scale-98 flex items-center justify-center gap-1.5"
+                    >
+                      <UserPlus className="w-3.5 h-3.5" />
+                      <span>Go to Register Profile</span>
+                    </button>
+                  </div>
+                )}
+
                 {/* Submit button: Get OTP */}
                 <button
                   type="submit"
@@ -621,8 +660,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                         <span className="font-bold text-purple-900 dark:text-purple-200 block text-xs">
                           Chief Proctor & Admin Account
                         </span>
-                        <span className="text-[11px] text-purple-700 dark:text-purple-400 font-mono">
-                          Phone: 9999999999 · OTP: 9999
+                        <span className="text-[11px] text-purple-700 dark:text-purple-400 font-medium">
+                          Official Campus Moderation Access
                         </span>
                       </div>
                     </div>
@@ -631,6 +670,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                       onClick={() => {
                         setLoginPhone('9999999999');
                         setOtpError('');
+                        setUnregisteredErrorPhone('');
                       }}
                       className="px-2.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-[11px] transition-transform active:scale-95 cursor-pointer shadow-xs shrink-0"
                     >
@@ -647,9 +687,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                         onClick={() => {
                           setLoginPhone('8094597917');
                           setOtpError('');
+                          setUnregisteredErrorPhone('');
                         }}
                         className="px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-[10px] cursor-pointer"
-                        title="Aitreya (Bhagat Singh Bhawan, OTP: 2005)"
                       >
                         Aitreya
                       </button>
@@ -658,9 +698,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                         onClick={() => {
                           setLoginPhone('9478579360');
                           setOtpError('');
+                          setUnregisteredErrorPhone('');
                         }}
                         className="px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-[10px] cursor-pointer"
-                        title="Naman (Narhari Bhawan, OTP: 1183)"
                       >
                         Naman
                       </button>
@@ -669,9 +709,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                         onClick={() => {
                           setLoginPhone('9034009669');
                           setOtpError('');
+                          setUnregisteredErrorPhone('');
                         }}
                         className="px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-[10px] cursor-pointer"
-                        title="Rivastik (Pratap Bhawan, OTP: 6699)"
                       >
                         Rivastik
                       </button>
@@ -680,9 +720,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                         onClick={() => {
                           setLoginPhone('9711457323');
                           setOtpError('');
+                          setUnregisteredErrorPhone('');
                         }}
                         className="px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-[10px] cursor-pointer"
-                        title="Khusboo (Kalpana Chawla Bhawan, OTP: 7323)"
                       >
                         Khusboo
                       </button>
@@ -866,13 +906,19 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
 
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1.5">
-                Campus Hostel
+                Campus Hostel / Day Scholar
               </label>
               <select
                 value={hostelName}
-                onChange={(e) => setHostelName(e.target.value)}
+                onChange={(e) => {
+                  setHostelName(e.target.value);
+                  if (e.target.value === 'Day Scholar' && !roomNumber) {
+                    setRoomNumber('Day Scholar');
+                  }
+                }}
                 className="w-full px-4 py-3 bg-[#F8FAFC] dark:bg-slate-900 border border-[#E2E8F0] dark:border-slate-800 rounded-xl text-slate-800 dark:text-slate-100 text-sm focus:outline-none focus:border-[#4F46E5] dark:focus:border-cyan-400 transition-colors cursor-pointer"
               >
+                <option value="Day Scholar">Day Scholar</option>
                 <optgroup label="Boys Hostels">
                   {BOYS_HOSTELS.map((h) => (
                     <option key={h} value={h}>{h}</option>
@@ -889,14 +935,14 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1.5">
-                  Hostel Room No.
+                  {hostelName === 'Day Scholar' ? 'Area / Locality' : 'Hostel Room No.'}
                 </label>
                 <input
                   type="text"
-                  required
+                  required={hostelName !== 'Day Scholar'}
                   value={roomNumber}
                   onChange={(e) => setRoomNumber(e.target.value)}
-                  placeholder="e.g. Room 204"
+                  placeholder={hostelName === 'Day Scholar' ? 'e.g. Local (Day Scholar)' : 'e.g. Room 204'}
                   className="w-full px-4 py-3 bg-[#F8FAFC] dark:bg-slate-900 border border-[#E2E8F0] dark:border-slate-800 rounded-xl text-slate-800 dark:text-slate-100 text-sm focus:outline-none focus:border-[#4F46E5] dark:focus:border-cyan-400 transition-colors"
                 />
               </div>

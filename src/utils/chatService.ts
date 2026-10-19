@@ -356,7 +356,6 @@ class RealtimeCampusService {
     }).catch(() => {});
   }
 
-  // Chat
   public sendMessage(msg: {
     id?: string;
     clientMsgId?: string;
@@ -365,6 +364,10 @@ class RealtimeCampusService {
     senderId: string;
     senderName: string;
     receiverId: string;
+    sellerId?: string;
+    buyerId?: string;
+    sellerPhone?: string;
+    buyerPhone?: string;
     listingId?: string;
     listingTitle?: string;
     listingPrice?: number;

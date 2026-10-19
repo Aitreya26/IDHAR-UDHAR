@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Listing, UserProfile, UserWarning } from '../types';
 import { PREDEFINED_ACCOUNTS } from '../data/predefinedUsers';
 import { 
@@ -58,6 +58,32 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   // Success toast feedback
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  // Student accounts excluding admin - merged with newly registered server users
+  const [studentAccounts, setStudentAccounts] = useState<UserProfile[]>(() =>
+    PREDEFINED_ACCOUNTS.filter((acc) => !acc.isAdmin)
+  );
+
+  useEffect(() => {
+    if (!isOpen) return;
+    fetch('/api/users')
+      .then((res) => res.json())
+      .then((users: UserProfile[]) => {
+        if (Array.isArray(users)) {
+          const map = new Map<string, UserProfile>();
+          for (const acc of PREDEFINED_ACCOUNTS) {
+            if (!acc.isAdmin) map.set(acc.id, acc);
+          }
+          for (const u of users) {
+            if (!u.isAdmin) {
+              map.set(u.id, u);
+            }
+          }
+          setStudentAccounts(Array.from(map.values()));
+        }
+      })
+      .catch((err) => console.warn('Could not fetch server users in AdminPanel:', err));
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const showToast = (msg: string) => {
@@ -88,9 +114,6 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     setSelectedUserToSuspend(null);
     setSuspendReason('');
   };
-
-  // Student accounts excluding admin
-  const studentAccounts = PREDEFINED_ACCOUNTS.filter(acc => !acc.isAdmin);
 
   const filteredListings = listings.filter(l => 
     l.title.toLowerCase().includes(searchQuery.toLowerCase()) ||

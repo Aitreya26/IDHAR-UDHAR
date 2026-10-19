@@ -7,6 +7,7 @@ export const COLLEGES: College[] = [
     shortName: 'UIET Kurukshetra',
     city: 'Kurukshetra, Haryana',
     hostels: [
+      'Day Scholar',
       'Shaheed Bhagat Singh Bhawan',
       'Narhari Bhawan',
       'Pratap Bhawan',
