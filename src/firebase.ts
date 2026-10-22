@@ -12,6 +12,7 @@ import {
   doc, 
   getDoc, 
   setDoc, 
+  deleteDoc,
   getDocFromServer,
   collection,
   onSnapshot,
@@ -246,5 +247,26 @@ export async function logoutFirebaseUser(): Promise<void> {
     await firebaseSignOut(auth);
   } catch {}
 }
+
+export const deleteFirestoreUserProfile = async (userId: string) => {
+  try {
+    const clean = userId.replace('user-', '').replace(/\D/g, '').slice(-10);
+    // Remove from safeStorage
+    try {
+      const existing = getLocalRegisteredUsers();
+      if (clean && existing[clean]) {
+        delete existing[clean];
+        safeStorage.setJSON(REGISTERED_USERS_KEY, existing);
+      }
+    } catch {}
+
+    await deleteDoc(doc(db, 'users', userId));
+    if (clean && `user-${clean}` !== userId) {
+      await deleteDoc(doc(db, 'users', `user-${clean}`));
+    }
+  } catch (e) {
+    console.warn('Failed to delete from Firestore (might not exist):', e);
+  }
+};
 
 export { app };

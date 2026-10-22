@@ -11,7 +11,8 @@ import {
   Image as ImageIcon, 
   Check, 
   Sparkles,
-  Trash2
+  Trash2,
+  Loader2
 } from 'lucide-react';
 
 interface CreateRequestModalProps {
@@ -61,6 +62,7 @@ export const CreateRequestModal: React.FC<CreateRequestModalProps> = ({
   const [imageUrl, setImageUrl] = useState<string>('');
   const [imageFileName, setImageFileName] = useState<string>('');
   const [imageError, setImageError] = useState<string>('');
+  const [isProcessingImage, setIsProcessingImage] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
@@ -73,12 +75,45 @@ export const CreateRequestModal: React.FC<CreateRequestModalProps> = ({
         setImageError('Please choose an image under 8MB');
         return;
       }
+      setIsProcessingImage(true);
       setImageFileName(file.name);
       const reader = new FileReader();
       reader.onload = (event) => {
-        if (event.target?.result) {
-          setImageUrl(event.target.result as string);
+        const rawUrl = event.target?.result as string;
+        if (!rawUrl) {
+          setIsProcessingImage(false);
+          return;
         }
+        const img = new Image();
+        img.onload = () => {
+          let { width, height } = img;
+          const maxDim = 800;
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, width, height);
+          const compressed = canvas.toDataURL('image/jpeg', 0.75);
+          setImageUrl(compressed);
+          setIsProcessingImage(false);
+        };
+        img.onerror = () => {
+          setImageUrl(rawUrl);
+          setIsProcessingImage(false);
+        };
+        img.src = rawUrl;
+      };
+      reader.onerror = () => {
+        setIsProcessingImage(false);
       };
       reader.readAsDataURL(file);
     }
@@ -310,7 +345,15 @@ export const CreateRequestModal: React.FC<CreateRequestModalProps> = ({
               className="hidden"
             />
 
-            {!imageUrl ? (
+            {isProcessingImage ? (
+              <div className="w-full py-6 px-4 rounded-2xl border-2 border-dashed border-orange-400 dark:border-orange-500 bg-orange-50/60 dark:bg-orange-950/30 flex flex-col items-center justify-center gap-1.5">
+                <Loader2 className="w-7 h-7 text-orange-500 animate-spin" />
+                <span className="text-xs font-bold text-orange-600 dark:text-orange-400">
+                  Optimizing photo...
+                </span>
+                <span className="text-[10px] text-slate-400">Lightweight image compression</span>
+              </div>
+            ) : !imageUrl ? (
               <div 
                 onClick={() => fileInputRef.current?.click()}
                 className="w-full py-5 px-4 rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-700 bg-[#F8FAFC] dark:bg-slate-900 hover:bg-orange-50/50 dark:hover:bg-slate-800/80 transition-colors flex flex-col items-center justify-center gap-1.5 cursor-pointer group"
@@ -380,10 +423,24 @@ export const CreateRequestModal: React.FC<CreateRequestModalProps> = ({
           <div className="pt-2">
             <button
               type="submit"
-              className="w-full py-4 px-6 bg-gradient-to-r from-orange-500 via-amber-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-extrabold text-sm rounded-2xl shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer"
+              disabled={isProcessingImage}
+              className={`w-full py-4 px-6 font-extrabold text-sm rounded-2xl shadow-lg transition-all flex items-center justify-center gap-2 ${
+                isProcessingImage
+                  ? 'bg-slate-300 dark:bg-slate-700 text-slate-500 cursor-not-allowed'
+                  : 'bg-gradient-to-r from-orange-500 via-amber-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white active:scale-[0.98] cursor-pointer'
+              }`}
             >
-              <Send className="w-4 h-4" />
-              <span>Broadcast Request to Hostel</span>
+              {isProcessingImage ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Processing Photo...</span>
+                </>
+              ) : (
+                <>
+                  <Send className="w-4 h-4" />
+                  <span>Broadcast Request to Hostel</span>
+                </>
+              )}
             </button>
           </div>
         </form>

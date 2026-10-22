@@ -1,5 +1,15 @@
 import { College } from '../types';
 
+export const DEFAULT_SAFE_MEETUP_SPOTS: string[] = [
+  'University Market',
+  'Central Library',
+  'UIET Main Building',
+  'Mechanical Block',
+  'Sports Complex Gate',
+  'Boys Hostel Complex Gate',
+  'Girls Hostel Complex Gate'
+];
+
 export const COLLEGES: College[] = [
   {
     id: 'uiet-kurukshetra',
@@ -23,15 +33,7 @@ export const COLLEGES: College[] = [
       'Ganga Bhawan',
       'Yamuna Bhawan'
     ],
-    safeMeetupSpots: [
-      'Nescafe Booth (Near UIET Main Block)',
-      'Bhagat Singh Hostel Common Room',
-      'Hostel 7 Common Room & Canteen',
-      'University Central Library Front Steps',
-      'Student Activity Centre (SAC)',
-      'UIET Mechanical Workshop Porch',
-      'Rose Garden Sitting Gazebo'
-    ]
+    safeMeetupSpots: [...DEFAULT_SAFE_MEETUP_SPOTS]
   },
   {
     id: 'nit-kurukshetra',
@@ -47,13 +49,7 @@ export const COLLEGES: College[] = [
       'Alaknanda Bhawan (Girls)',
       'Cauvery Bhawan'
     ],
-    safeMeetupSpots: [
-      'Maggi Point / Nescafe Roundabout',
-      'Sports Complex Main Gate',
-      'Hostel 10 Open Air Amphitheatre',
-      'Central Workshop Lawn',
-      'NIT Market Complex'
-    ]
+    safeMeetupSpots: [...DEFAULT_SAFE_MEETUP_SPOTS]
   },
   {
     id: 'iit-delhi',
@@ -70,12 +66,7 @@ export const COLLEGES: College[] = [
       'Kumaon Hostel',
       'Vindhyachal Hostel'
     ],
-    safeMeetupSpots: [
-      'Student Activity Centre (SAC) Lawns',
-      'Amul Parlour / Hospital Chowk',
-      'Main Building Front Lawn',
-      'Nilgiri Hostel Courtyard'
-    ]
+    safeMeetupSpots: [...DEFAULT_SAFE_MEETUP_SPOTS]
   },
   {
     id: 'dtu-delhi',
@@ -90,11 +81,6 @@ export const COLLEGES: College[] = [
       'Sister Nivedita Girls Hostel',
       'Kalpana Chawla Hostel'
     ],
-    safeMeetupSpots: [
-      'OAT (Open Air Theatre)',
-      'Mic Mac Canteen',
-      'BR Ambedkar Auditorium Steps',
-      'Sports Stadium Bleachers'
-    ]
+    safeMeetupSpots: [...DEFAULT_SAFE_MEETUP_SPOTS]
   }
 ];

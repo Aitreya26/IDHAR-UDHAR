@@ -12,7 +12,8 @@ import {
   Calendar,
   Clock,
   Bell,
-  Info
+  Info,
+  Loader2
 } from 'lucide-react';
 
 interface CreateListingModalProps {
@@ -50,6 +51,7 @@ export const CreateListingModal: React.FC<CreateListingModalProps> = ({
   // Attached Photo state
   const [imageUrl, setImageUrl] = useState<string>('');
   const [imageFileName, setImageFileName] = useState<string>('');
+  const [isProcessingImage, setIsProcessingImage] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
@@ -57,11 +59,15 @@ export const CreateListingModal: React.FC<CreateListingModalProps> = ({
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      setIsProcessingImage(true);
       setImageFileName(file.name);
       const reader = new FileReader();
       reader.onload = (event) => {
         const rawUrl = event.target?.result as string;
-        if (!rawUrl) return;
+        if (!rawUrl) {
+          setIsProcessingImage(false);
+          return;
+        }
         // Optimize and compress image using canvas to ensure lightweight localStorage persistence
         const img = new Image();
         img.onload = () => {
@@ -83,11 +89,16 @@ export const CreateListingModal: React.FC<CreateListingModalProps> = ({
           ctx?.drawImage(img, 0, 0, width, height);
           const compressed = canvas.toDataURL('image/jpeg', 0.75);
           setImageUrl(compressed);
+          setIsProcessingImage(false);
         };
         img.onerror = () => {
           setImageUrl(rawUrl);
+          setIsProcessingImage(false);
         };
         img.src = rawUrl;
+      };
+      reader.onerror = () => {
+        setIsProcessingImage(false);
       };
       reader.readAsDataURL(file);
     }
@@ -212,7 +223,15 @@ export const CreateListingModal: React.FC<CreateListingModalProps> = ({
               className="hidden"
             />
 
-            {!imageUrl ? (
+            {isProcessingImage ? (
+              <div className="w-full py-8 px-4 rounded-2xl border-2 border-dashed border-[#818CF8] dark:border-cyan-500 bg-[#EEF2FF]/60 dark:bg-cyan-950/30 flex flex-col items-center justify-center gap-2">
+                <Loader2 className="w-8 h-8 text-[#4F46E5] dark:text-cyan-400 animate-spin" />
+                <span className="text-xs font-bold text-[#4F46E5] dark:text-cyan-400">
+                  Processing & optimizing photo...
+                </span>
+                <span className="text-[10px] text-slate-400">Compressing for lightweight speed</span>
+              </div>
+            ) : !imageUrl ? (
               <div
                 onClick={() => fileInputRef.current?.click()}
                 className="w-full py-7 px-4 rounded-2xl border-2 border-dashed border-[#C7D2FE] dark:border-slate-700 bg-[#F8FAFC] dark:bg-slate-900 hover:bg-[#EEF2FF]/50 dark:hover:bg-slate-800/80 transition-colors flex flex-col items-center justify-center gap-2 cursor-pointer group"
@@ -342,11 +361,27 @@ export const CreateListingModal: React.FC<CreateListingModalProps> = ({
               placeholder="e.g. 600 (original retail price you bought it for)"
               className="w-full px-4 py-3 bg-[#F8FAFC] dark:bg-slate-900 border border-[#E2E8F0] dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-100 text-sm focus:outline-none focus:border-[#4F46E5] dark:focus:border-cyan-400 focus:bg-white dark:focus:bg-slate-800 font-mono"
             />
-            {costPrice && price && parseInt(costPrice, 10) > parseInt(price, 10) && (
-              <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold block mt-1">
-                ✓ Showing a discount of ₹{parseInt(costPrice, 10) - parseInt(price, 10)} ({Math.round(((parseInt(costPrice, 10) - parseInt(price, 10)) / parseInt(costPrice, 10)) * 100)}% off) to campus buyers!
-              </span>
-            )}
+            {(() => {
+              const numPrice = parseInt(price, 10);
+              const numCost = parseInt(costPrice, 10);
+              const isValidDiscount =
+                !isNaN(numPrice) &&
+                !isNaN(numCost) &&
+                numCost > 0 &&
+                numPrice >= 0 &&
+                numCost > numPrice;
+
+              if (!isValidDiscount) return null;
+
+              const discountDiff = numCost - numPrice;
+              const discountPercent = Math.round((discountDiff / numCost) * 100);
+
+              return (
+                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold block mt-1">
+                  ✓ Showing a discount of ₹{discountDiff} ({discountPercent}% off) to campus buyers!
+                </span>
+              );
+            })()}
           </div>
 
           {/* Input Box: Reason For Selling */}
@@ -513,9 +548,21 @@ export const CreateListingModal: React.FC<CreateListingModalProps> = ({
           <div className="pt-2">
             <button
               type="submit"
-              className="w-full py-4 px-6 bg-[#4F46E5] hover:bg-[#4338CA] dark:bg-cyan-500 dark:hover:bg-cyan-400 text-white dark:text-slate-950 font-bold text-base rounded-2xl shadow-md transition-all active:scale-[0.98] cursor-pointer"
+              disabled={isProcessingImage}
+              className={`w-full py-4 px-6 font-bold text-base rounded-2xl shadow-md transition-all flex items-center justify-center gap-2 ${
+                isProcessingImage 
+                  ? 'bg-slate-300 dark:bg-slate-700 text-slate-500 cursor-not-allowed'
+                  : 'bg-[#4F46E5] hover:bg-[#4338CA] dark:bg-cyan-500 dark:hover:bg-cyan-400 text-white dark:text-slate-950 active:scale-[0.98] cursor-pointer'
+              }`}
             >
-              List Item Now
+              {isProcessingImage ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>Processing Photo...</span>
+                </>
+              ) : (
+                <span>List Item Now</span>
+              )}
             </button>
           </div>
         </form>

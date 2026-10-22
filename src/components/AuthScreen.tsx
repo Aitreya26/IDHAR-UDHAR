@@ -376,13 +376,33 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
 
     setIsSigningUp(true);
 
-    // Check if phone number is already registered
-    const existingPredefined = findPredefinedAccountByPhone(cleanPhone);
-    const existingProfile = existingPredefined || (await fetchFirestoreUserProfileByPhone(cleanPhone));
-    if (existingProfile) {
-      setIsSigningUp(false);
-      onLoginSuccess(existingProfile);
-      return;
+    try {
+      const checkRes = await fetch('/api/users/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: cleanPhone, rollNumber: rollNumber.trim() })
+      });
+      const { phoneExists, rollExists } = await checkRes.json();
+
+      if (phoneExists) {
+        setIsSigningUp(false);
+        setSignupError("Oops! This mobile number is already linked to an active campus account. If this is you, please switch to the Login tab.");
+        return;
+      }
+      if (rollExists) {
+        setIsSigningUp(false);
+        setSignupError("Hold on! The Roll Number you entered is already registered to another student. Please double-check your ID card.");
+        return;
+      }
+    } catch (err) {
+      console.warn('Could not check user duplicates via API:', err);
+      // Fallback local check
+      const existingPredefined = findPredefinedAccountByPhone(cleanPhone);
+      if (existingPredefined) {
+        setIsSigningUp(false);
+        setSignupError("Oops! This mobile number is already linked to an active campus account. If this is you, please switch to the Login tab.");
+        return;
+      }
     }
 
     const matchedCollege = COLLEGES.find(c => c.name.toLowerCase().includes(collegeName.toLowerCase())) || COLLEGES[0];
@@ -406,7 +426,17 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
       joinedDate: 'Verified Student'
     };
 
-    // Save student profile across Server, safeStorage, and Firestore
+    // Permanently save student profile across Server, safeStorage, and Firestore
+    try {
+      await fetch('/api/users/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(user)
+      });
+    } catch (err) {
+      console.warn('Failed direct POST to /api/users/register:', err);
+    }
+
     await saveFirestoreUserProfile(user);
     setIsSigningUp(false);
     onLoginSuccess(user);
@@ -648,87 +678,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                     </button>
                   </div>
                 )}
-
-                {/* Special Chief Proctor & Admin Account Access */}
-                <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
-                  <div className="p-3 rounded-2xl bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800/60 flex items-center justify-between gap-2.5 text-xs">
-                    <div className="flex items-center gap-2">
-                      <div className="p-1.5 rounded-lg bg-purple-600 text-white shrink-0">
-                        <ShieldCheck className="w-3.5 h-3.5" />
-                      </div>
-                      <div>
-                        <span className="font-bold text-purple-900 dark:text-purple-200 block text-xs">
-                          Chief Proctor & Admin Account
-                        </span>
-                        <span className="text-[11px] text-purple-700 dark:text-purple-400 font-medium">
-                          Official Campus Moderation Access
-                        </span>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setLoginPhone('9999999999');
-                        setOtpError('');
-                        setUnregisteredErrorPhone('');
-                      }}
-                      className="px-2.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-[11px] transition-transform active:scale-95 cursor-pointer shadow-xs shrink-0"
-                    >
-                      Fill Admin
-                    </button>
-                  </div>
-
-                  {/* Student accounts quick select */}
-                  <div className="pt-1.5 flex items-center justify-between gap-1 text-[11px] text-slate-500">
-                    <span className="font-semibold text-[10px] uppercase tracking-wider text-slate-400">Student Logins:</span>
-                    <div className="flex flex-wrap gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setLoginPhone('8094597917');
-                          setOtpError('');
-                          setUnregisteredErrorPhone('');
-                        }}
-                        className="px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-[10px] cursor-pointer"
-                      >
-                        Aitreya
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setLoginPhone('9478579360');
-                          setOtpError('');
-                          setUnregisteredErrorPhone('');
-                        }}
-                        className="px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-[10px] cursor-pointer"
-                      >
-                        Naman
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setLoginPhone('9034009669');
-                          setOtpError('');
-                          setUnregisteredErrorPhone('');
-                        }}
-                        className="px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-[10px] cursor-pointer"
-                      >
-                        Rivastik
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setLoginPhone('9711457323');
-                          setOtpError('');
-                          setUnregisteredErrorPhone('');
-                        }}
-                        className="px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-[10px] cursor-pointer"
-                      >
-                        Khusboo
-                      </button>
-                    </div>
-                  </div>
-                </div>
               </form>
             ) : (
               /* STEP 2: 4-Digit Real-Time OTP Input */

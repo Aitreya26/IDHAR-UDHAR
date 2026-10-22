@@ -11,7 +11,8 @@ import {
   CheckCheck,
   Check,
   Sparkles,
-  Info
+  Info,
+  Trash2
 } from 'lucide-react';
 import { ItemVisual } from './ItemVisual';
 
@@ -52,6 +53,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
         lastMessageTime: 'Just now',
         lastMessageSenderId: currentUser.id,
         updatedAt: Date.now(),
+        isOfficialAdminContext: Boolean(currentUser?.isAdmin),
       };
     }
     return null;
@@ -62,7 +64,16 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const [isPeerOnline, setIsPeerOnline] = useState(false);
   const typingTimeoutRef = useRef<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const isInitialLoadRef = useRef(true);
+  const [shouldFocusInput, setShouldFocusInput] = useState(false);
+
+  useEffect(() => {
+    if (shouldFocusInput) {
+      inputRef.current?.focus();
+      setShouldFocusInput(false);
+    }
+  }, [shouldFocusInput]);
 
   // If only listing is provided, find or create thread
   useEffect(() => {
@@ -86,6 +97,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
         lastMessageTime: 'Just now',
         lastMessageSenderId: currentUser.id,
         updatedAt: Date.now(),
+        isOfficialAdminContext: Boolean(currentUser?.isAdmin),
       };
       setActiveThread((prev) => (prev && prev.listingId === listing.id ? prev : fallbackThread));
 
@@ -103,6 +115,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
           buyerName: currentUser.fullName,
           buyerHostel: currentUser.hostelName,
           buyerPhone: currentUser.phone,
+          isOfficialAdminContext: Boolean(currentUser?.isAdmin),
         })
         .then((th) => {
           if (th) {
@@ -111,7 +124,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
         })
         .catch(() => {});
     }
-  }, [initialThread, listing?.id, currentUser.id]);
+  }, [initialThread, listing?.id, currentUser.id, currentUser?.isAdmin]);
 
   // Determine peer info
   const isSeller = activeThread ? activeThread.sellerId === currentUser.id : false;
@@ -138,6 +151,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
   const itemTitle = activeThread?.listingTitle || listing?.title || 'Campus Item';
   const itemPrice = activeThread?.listingPrice || listing?.price || 0;
+  const isSystemAdminChat = activeThread?.listingId === 'system-admin';
+  const isOfficialAdminContext = Boolean(activeThread?.isOfficialAdminContext);
+  const isAdminChat = isSystemAdminChat || isOfficialAdminContext;
 
   // Load message history & subscribe to live socket events
   useEffect(() => {
@@ -286,7 +302,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
       senderName: currentUser.fullName,
       receiverId: peerId,
       text,
-      timestamp: new Date().toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true }),
+      timestamp: new Date().toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' }),
       createdAt: Date.now(),
       read: false,
     };
@@ -323,10 +339,26 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
   const quickChips = [
     'Is this still available?',
-    'Can we meet near UIET Nescafe Booth?',
+    'Can we meet at University Market?',
+    'Can we meet at Central Library?',
+    'Can we meet at UIET Main Building?',
+    'Can we meet at Sports Complex Gate?',
+    'Can we meet at Boys Hostel Complex Gate?',
+    'Can we meet at Girls Hostel Complex Gate?',
+    'Can we meet at Mechanical Block?',
+    '📍 Custom Meetup Spot...',
     'Is the price negotiable?',
     'I can collect today post classes!',
   ];
+
+  const handleChipClick = (chip: string) => {
+    if (chip === '📍 Custom Meetup Spot...') {
+      setInputVal('Can we meet at ');
+      setShouldFocusInput(true);
+      return;
+    }
+    handleSend(chip);
+  };
 
   return (
     <div className="w-full h-full flex flex-col justify-between bg-[#F8FAFC] dark:bg-[#0A0A0A] select-none transition-colors duration-200">
@@ -400,33 +432,67 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
       {/* 2. Pinned Item Context Bar */}
       <div className="bg-white dark:bg-[#1E293B] border-b border-slate-100 dark:border-slate-800 px-4 py-2.5 flex items-center justify-between gap-3 shadow-xs shrink-0">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-9 h-9 rounded-xl overflow-hidden shrink-0 bg-slate-100 dark:bg-slate-900 flex items-center justify-center">
-            {listing ? (
-              <ItemVisual
-                title={listing.title}
-                category={listing.category}
-                tags={listing.tags}
-                imageUrl={listing.imageUrl}
-                className="w-full h-full"
-              />
-            ) : (
-              <span className="text-xs font-bold text-indigo-500 font-mono">₹{itemPrice}</span>
-            )}
+        {isSystemAdminChat ? (
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-9 h-9 rounded-xl overflow-hidden shrink-0 bg-purple-100 dark:bg-purple-950/70 border border-purple-200 dark:border-purple-800 flex items-center justify-center text-purple-600 dark:text-purple-300">
+              <ShieldCheck className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="px-2 py-0.5 rounded-md bg-purple-600 text-white font-black text-[9px] tracking-wider uppercase">
+                  OFFICIAL CAMPUS COMMUNICATION
+                </span>
+              </div>
+              <h4 className="text-xs font-extrabold text-[#0F172A] dark:text-white truncate mt-0.5">
+                Chief Proctor's Office · Direct Student Guidance
+              </h4>
+            </div>
           </div>
+        ) : (
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-9 h-9 rounded-xl overflow-hidden shrink-0 bg-slate-100 dark:bg-slate-900 flex items-center justify-center">
+              {listing ? (
+                <ItemVisual
+                  title={listing.title}
+                  category={listing.category}
+                  tags={listing.tags}
+                  imageUrl={listing.imageUrl}
+                  className="w-full h-full"
+                />
+              ) : (
+                <div className="flex items-center justify-center text-slate-400">
+                  <Trash2 className="w-4 h-4" />
+                </div>
+              )}
+            </div>
 
-          <div className="min-w-0">
-            <h4 className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">
-              {itemTitle}
-            </h4>
-            <span className="text-xs font-extrabold text-[#2563EB] dark:text-cyan-400">
-              ₹{itemPrice}
-            </span>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                {isOfficialAdminContext && (
+                  <span className="px-1.5 py-0.5 rounded-md bg-purple-600 text-white font-black text-[9px] tracking-wider uppercase flex items-center gap-0.5 shrink-0">
+                    <ShieldCheck className="w-2.5 h-2.5" /> ADMIN
+                  </span>
+                )}
+                <h4 className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">
+                  {itemTitle}
+                </h4>
+              </div>
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className="text-xs font-extrabold text-[#2563EB] dark:text-cyan-400">
+                  ₹{itemPrice}
+                </span>
+                {!listing && (
+                  <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
+                    Listing Removed by User/Admin
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="flex items-center gap-1.5 shrink-0">
-          {listing && onViewItem && (
+          {!currentUser.isAdmin && !isSystemAdminChat && listing && onViewItem && (
             <button
               onClick={() => onViewItem(listing)}
               className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-[10px] transition-colors cursor-pointer"
@@ -435,7 +501,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
             </button>
           )}
 
-          {listing && onScheduleHandover && (
+          {!currentUser.isAdmin && !isSystemAdminChat && listing && onScheduleHandover && (
             <button
               onClick={() => onScheduleHandover(listing)}
               className="px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 font-bold text-[10px] border border-emerald-200 dark:border-emerald-800/60 flex items-center gap-1 transition-colors cursor-pointer"
@@ -450,33 +516,45 @@ export const ChatView: React.FC<ChatViewProps> = ({
       {/* 3. Messages History Body */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
         {/* Safety Banner */}
-        <div className="p-2.5 rounded-2xl bg-indigo-50/70 dark:bg-slate-900/80 border border-indigo-100 dark:border-slate-800 text-center text-[11px] text-slate-500 dark:text-slate-400 space-y-0.5">
+        <div className="p-2.5 rounded-2xl bg-indigo-50/70 dark:bg-slate-900/80 border border-indigo-100 dark:slate-800 text-center text-[11px] text-slate-500 dark:text-slate-400 space-y-0.5">
           <p className="font-semibold text-slate-700 dark:text-slate-200 flex items-center justify-center gap-1">
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 inline" />
             <span>End-to-End Campus Conversation</span>
           </p>
           <p className="text-[10px] text-slate-400">
-            Coordinate handovers at recommended spots like Nescafe Booth or Hostel Common Rooms.
+            Coordinate handovers at verified spots like University Market, Central Library, or Hostel Gates.
           </p>
         </div>
 
         {/* Empty Conversation Welcome State */}
         {messages.length === 0 && (
           <div className="py-8 text-center space-y-2 animate-in fade-in duration-200">
-            <div className="w-12 h-12 rounded-2xl bg-[#EDE9FE] dark:bg-indigo-950/60 text-[#4F46E5] dark:text-cyan-400 flex items-center justify-center mx-auto shadow-inner">
-              <MessageSquare className="w-6 h-6" />
+            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mx-auto shadow-inner ${
+              isSystemAdminChat ? 'bg-purple-100 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400' : 'bg-[#EDE9FE] dark:bg-indigo-950/60 text-[#4F46E5] dark:text-cyan-400'
+            }`}>
+              {isSystemAdminChat ? <ShieldCheck className="w-6 h-6" /> : <MessageSquare className="w-6 h-6" />}
             </div>
             <p className="text-xs font-bold text-slate-800 dark:text-slate-200">
-              Start chatting with {peerName}
+              {isSystemAdminChat ? 'Official Proctor Communication Channel' : isOfficialAdminContext ? `Official Admin Inquiry: ${itemTitle}` : `Start chatting with ${peerName}`}
             </p>
             <p className="text-[11px] text-slate-400 max-w-xs mx-auto">
-              Ask about &ldquo;{itemTitle}&rdquo;, check item availability, or suggest a safe meetup spot near UIET.
+              {isSystemAdminChat 
+                ? 'Direct and confidential channel with the Chief Proctor. Message history is recorded.'
+                : isOfficialAdminContext
+                ? `Official proctor inquiry regarding "${itemTitle}". Responses are monitored.`
+                : `Ask about "${itemTitle}", check item availability, or suggest a safe meetup spot near UIET.`}
             </p>
           </div>
         )}
 
         {messages.map((msg) => {
           const isMe = msg.senderId === currentUser.id;
+          const isMsgAdmin =
+            (msg.senderId === currentUser.id && currentUser.isAdmin) ||
+            msg.senderName === 'Chief Proctor' ||
+            msg.senderId === 'user-admin' ||
+            msg.senderId === 'admin' ||
+            (isOfficialAdminContext && (msg.senderName?.includes('Admin') || msg.senderName === 'Chief Proctor'));
 
           return (
             <div
@@ -484,23 +562,39 @@ export const ChatView: React.FC<ChatViewProps> = ({
               className={`flex items-end gap-2 ${isMe ? 'justify-end' : 'justify-start'}`}
             >
               {!isMe && (
-                <div className="w-6 h-6 rounded-full bg-[#EDE9FE] dark:bg-indigo-950/60 text-[#4F46E5] dark:text-cyan-400 text-[10px] font-bold flex items-center justify-center shrink-0 mb-1">
-                  {peerName.charAt(0)}
+                <div
+                  className={`w-6 h-6 rounded-full text-[10px] font-bold flex items-center justify-center shrink-0 mb-1 ${
+                    isMsgAdmin
+                      ? 'bg-purple-700 text-white'
+                      : 'bg-[#EDE9FE] dark:bg-indigo-950/60 text-[#4F46E5] dark:text-cyan-400'
+                  }`}
+                >
+                  {isMsgAdmin ? <ShieldCheck className="w-3.5 h-3.5" /> : peerName.charAt(0)}
                 </div>
               )}
 
               <div
                 className={`max-w-[78%] sm:max-w-[70%] rounded-2xl px-3.5 py-2.5 text-xs shadow-xs space-y-1 ${
-                  isMe
+                  isMsgAdmin
+                    ? 'bg-purple-700 text-white font-medium shadow-sm'
+                    : isMe
                     ? 'bg-[#4F46E5] text-white rounded-br-xs dark:bg-cyan-500 dark:text-slate-950 font-medium'
                     : 'bg-white dark:bg-[#1E293B] text-slate-800 dark:text-slate-100 rounded-bl-xs border border-slate-100 dark:border-slate-800'
                 }`}
               >
+                {isMsgAdmin && (
+                  <div className="flex items-center gap-1 text-[10px] font-extrabold text-purple-200 border-b border-purple-500/40 pb-1 mb-1">
+                    <ShieldCheck className="w-3 h-3 text-amber-300" />
+                    <span>{isSystemAdminChat ? 'Chief Proctor (Official Notice)' : 'Chief Proctor / Admin'}</span>
+                  </div>
+                )}
                 <p className="leading-relaxed break-words whitespace-pre-wrap">{msg.text}</p>
 
                 <div
                   className={`flex items-center justify-end gap-1 text-[9px] ${
-                    isMe
+                    isMsgAdmin
+                      ? 'text-purple-200'
+                      : isMe
                       ? 'text-indigo-200 dark:text-slate-900/80'
                       : 'text-slate-400 dark:text-slate-500'
                   }`}
@@ -509,7 +603,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   {isMe && (
                     <span>
                       {msg.read ? (
-                        <CheckCheck className="w-3 h-3 text-cyan-200 dark:text-slate-950" />
+                        <CheckCheck className={`w-3 h-3 ${isMsgAdmin ? 'text-purple-200' : 'text-cyan-200 dark:text-slate-950'}`} />
                       ) : (
                         <Check className="w-3 h-3" />
                       )}
@@ -540,20 +634,22 @@ export const ChatView: React.FC<ChatViewProps> = ({
       </div>
 
       {/* 4. Campus Quick Suggestions Chips */}
-      <div className="px-3 pt-2 bg-white dark:bg-[#0F172A] border-t border-slate-100 dark:border-slate-800">
-        <div className="flex gap-1.5 overflow-x-auto pb-2 scrollbar-none">
-          {quickChips.map((chip, idx) => (
-            <button
-              key={idx}
-              type="button"
-              onClick={() => handleSend(chip)}
-              className="px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-[11px] whitespace-nowrap transition-colors cursor-pointer shrink-0 border border-transparent dark:border-slate-700/50"
-            >
-              {chip}
-            </button>
-          ))}
+      {!isAdminChat && (
+        <div className="px-3 pt-2 bg-white dark:bg-[#0F172A] border-t border-slate-100 dark:border-slate-800">
+          <div className="flex gap-1.5 overflow-x-auto pb-2 scrollbar-none">
+            {quickChips.map((chip, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => handleChipClick(chip)}
+                className="px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-[11px] whitespace-nowrap transition-colors cursor-pointer shrink-0 border border-transparent dark:border-slate-700/50"
+              >
+                {chip}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* 5. Input Bar */}
       <div className="bg-white dark:bg-[#0F172A] p-3 border-t border-slate-100 dark:border-slate-800 shrink-0">
@@ -565,6 +661,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
           className="flex items-center gap-2"
         >
           <input
+            ref={inputRef}
             type="text"
             value={inputVal}
             onChange={handleInputChange}

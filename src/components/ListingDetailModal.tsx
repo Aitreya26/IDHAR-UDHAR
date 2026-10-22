@@ -23,7 +23,8 @@ import {
   Info,
   X,
   Calendar,
-  Bell
+  Bell,
+  Edit3
 } from 'lucide-react';
 
 interface ListingDetailModalProps {
@@ -36,6 +37,7 @@ interface ListingDetailModalProps {
   onInitiateExchange: (listing: Listing) => void;
   onRequireAuth?: (intent: 'buy' | 'message') => void;
   onOpenFullPhoto?: (listing: Listing) => void;
+  onEditListing?: (listing: Listing) => void;
   onReportListing?: (listing: Listing, reason: string, details?: string) => void;
   onAdminRemoveListing?: (listingId: string, reason?: string) => void;
   onAdminWarnUser?: (userId: string, reason: string) => void;
@@ -52,6 +54,7 @@ export const ListingDetailModal: React.FC<ListingDetailModalProps> = ({
   onInitiateExchange,
   onRequireAuth,
   onOpenFullPhoto,
+  onEditListing,
   onReportListing,
   onAdminRemoveListing,
   onAdminWarnUser,
@@ -70,7 +73,31 @@ export const ListingDetailModal: React.FC<ListingDetailModalProps> = ({
   const [isAdminSuspendOpen, setIsAdminSuspendOpen] = useState(false);
   const [adminSuspendReason, setAdminSuspendReason] = useState('');
 
-  if (!isOpen || !listing) return null;
+  if (!isOpen) return null;
+
+  if (!listing) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
+        <div className="relative w-full max-w-sm bg-white dark:bg-[#0F172A] rounded-3xl p-6 text-center space-y-4 shadow-2xl border border-slate-200 dark:border-slate-800">
+          <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 flex items-center justify-center mx-auto">
+            <Trash2 className="w-6 h-6" />
+          </div>
+          <div>
+            <h3 className="text-base font-bold text-slate-800 dark:text-slate-200">Listing Removed by User/Admin</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+              This item has been removed from campus listings and is no longer available.
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-full py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs cursor-pointer"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const isMyListing = Boolean(
     currentUser &&
@@ -255,7 +282,7 @@ export const ListingDetailModal: React.FC<ListingDetailModalProps> = ({
                   </span>
                   {listing.rentDueDate && (
                     <span className="text-xs font-black text-[#4F46E5] dark:text-cyan-400 bg-white dark:bg-slate-800 px-2 py-0.5 rounded-md border border-indigo-200 dark:border-indigo-800">
-                      {new Date(listing.rentDueDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      {new Date(listing.rentDueDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' })}
                     </span>
                   )}
                 </div>
@@ -263,7 +290,7 @@ export const ListingDetailModal: React.FC<ListingDetailModalProps> = ({
                   {listing.rentDueDate ? (
                     <>
                       This item must be returned to the lender on or before{' '}
-                      <strong>{new Date(listing.rentDueDate).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}</strong>.
+                      <strong>{new Date(listing.rentDueDate).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' })}</strong>.
                       You will get automated in-app reminders <strong>2 days</strong> and <strong>1 day</strong> before this date.
                     </>
                   ) : (
@@ -460,27 +487,41 @@ export const ListingDetailModal: React.FC<ListingDetailModalProps> = ({
         {/* Bottom Action Bar */}
         <div className="sticky bottom-0 bg-white/95 dark:bg-[#0F172A]/95 backdrop-blur-md p-4 border-t border-slate-100 dark:border-slate-800 flex items-center gap-2.5">
           {isMyListing ? (
-            <div className="w-full py-3 px-4 rounded-2xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/50 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Tag className="w-4 h-4 text-[#4F46E5] dark:text-cyan-400 shrink-0" />
-                <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
-                  This is your listing
+            <div className="w-full flex items-center gap-2">
+              <div className="flex-1 py-3 px-4 rounded-2xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/50 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Tag className="w-4 h-4 text-[#4F46E5] dark:text-cyan-400 shrink-0" />
+                  <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
+                    This is your listing
+                  </span>
+                </div>
+                <span className="text-xs font-black text-[#4F46E5] dark:text-cyan-400 font-mono">
+                  ₹{listing.price.toLocaleString('en-IN')}
+                  {listing.listingType === 'rent' ? `/${listing.rentPeriod || 'mo'}` : ''}
                 </span>
               </div>
-              <span className="text-xs font-black text-[#4F46E5] dark:text-cyan-400 font-mono">
-                ₹{listing.price.toLocaleString('en-IN')}
-                {listing.listingType === 'rent' ? `/${listing.rentPeriod || 'mo'}` : ''}
-              </span>
+              {onEditListing && (
+                <button
+                  type="button"
+                  onClick={() => onEditListing(listing)}
+                  className="py-3 px-4 bg-[#4F46E5] hover:bg-[#4338CA] dark:bg-cyan-500 dark:hover:bg-cyan-400 text-white dark:text-slate-950 font-bold text-xs sm:text-sm rounded-2xl shadow-md transition-all active:scale-[0.98] flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
+                >
+                  <Edit3 className="w-4 h-4" />
+                  <span>Edit Listing</span>
+                </button>
+              )}
             </div>
           ) : (
             <>
-              <button
-                onClick={() => handleAction('buy', () => onInitiateExchange(listing))}
-                className="flex-1 py-3.5 px-3 bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-400 text-white dark:text-slate-950 font-bold text-xs sm:text-sm rounded-2xl shadow-md transition-all active:scale-[0.98] flex items-center justify-center gap-1.5 cursor-pointer"
-              >
-                <Handshake className="w-4 h-4 shrink-0" />
-                <span className="truncate">{listing.listingType === 'rent' ? 'Rent Item' : 'Buy Now'} (₹{listing.price})</span>
-              </button>
+              {!currentUser.isAdmin && (
+                <button
+                  onClick={() => handleAction('buy', () => onInitiateExchange(listing))}
+                  className="flex-1 py-3.5 px-3 bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-400 text-white dark:text-slate-950 font-bold text-xs sm:text-sm rounded-2xl shadow-md transition-all active:scale-[0.98] flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Handshake className="w-4 h-4 shrink-0" />
+                  <span className="truncate">{listing.listingType === 'rent' ? 'Rent Item' : 'Buy Now'} (₹{listing.price})</span>
+                </button>
+              )}
 
               <button
                 onClick={() => handleAction('message', () => onOpenChat(listing))}

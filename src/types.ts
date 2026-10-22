@@ -153,6 +153,7 @@ export interface ChatThread {
   unreadCount?: number;
   updatedAt?: number;
   messages?: ChatMessage[];
+  isOfficialAdminContext?: boolean;
 }
 
 export interface ExchangeSession {
@@ -224,4 +225,12 @@ export interface PushNotificationAlert {
   timestamp: string;
   requestId: string;
   imageUrl?: string;
+}
+
+export interface CampusAnnouncement {
+  id: string;
+  message: string;
+  priority: 'normal' | 'high' | 'urgent';
+  adminName: string;
+  timestamp: number;
 }

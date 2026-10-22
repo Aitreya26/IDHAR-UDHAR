@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { UserProfile, Listing, CampusRequest, ExchangeSession, PushNotificationAlert, CategoryType, ChatThread, UserWarning, UserModerationRecord } from './types';
+import { UserProfile, Listing, CampusRequest, ExchangeSession, PushNotificationAlert, CategoryType, ChatThread, UserWarning, UserModerationRecord, CampusAnnouncement } from './types';
 import { INITIAL_LISTINGS, INITIAL_REQUESTS } from './data/mockData';
 import { safeStorage } from './utils/storage';
 import { realtimeService, chatService } from './utils/chatService';
@@ -19,13 +19,14 @@ import { BottomBar } from './components/BottomBar';
 import { ListingDetailModal } from './components/ListingDetailModal';
 import { SecureExchangeModal } from './components/SecureExchangeModal';
 import { CreateListingModal } from './components/CreateListingModal';
+import { EditListingModal } from './components/EditListingModal';
 import { CreateRequestModal } from './components/CreateRequestModal';
 import { NotificationToast } from './components/NotificationToast';
 import { GuestNoticeModal, GuestActionIntent } from './components/GuestNoticeModal';
 import { ImageMaximizeModal } from './components/ImageMaximizeModal';
 import { RateSellerModal } from './components/RateSellerModal';
 import { AdminPanelModal } from './components/AdminPanelModal';
-import { recordSellerRating } from './data/reputation';
+import { recordSellerRating, recalculateSellerReputation } from './data/reputation';
 import { Plus, Bell, X, Store, MessageSquare, Phone } from 'lucide-react';
 
 const GUEST_USER: UserProfile = {
@@ -99,6 +100,7 @@ export default function App() {
   });
 
   // Campus Exchanges state
+  const [announcements, setAnnouncements] = useState<CampusAnnouncement[]>([]);
   const [exchanges, setExchanges] = useState<ExchangeSession[]>(() => {
     return safeStorage.getJSON<ExchangeSession[]>('idhar_udhar_exchanges', [
       {
@@ -117,7 +119,7 @@ export default function App() {
         buyerPhone: '+919812456789',
         buyerHostel: 'Hostel 7 (Charak Bhawan)',
         buyerRoom: 'Room 108',
-        campusLocation: 'Nescafe Booth (Near UIET Main Block)',
+        campusLocation: 'University Market',
         exchangeCode: '4921',
         scheduledTime: 'Today at 5:30 PM (Post Classes)',
         status: 'scheduled',
@@ -135,6 +137,7 @@ export default function App() {
   const [exchangeTargetListing, setExchangeTargetListing] = useState<Listing | null>(null);
   const [rateExchangeTarget, setRateExchangeTarget] = useState<ExchangeSession | null>(null);
   const [isCreateListingOpen, setIsCreateListingOpen] = useState(false);
+  const [editingListing, setEditingListing] = useState<Listing | null>(null);
   const [isCreateRequestOpen, setIsCreateRequestOpen] = useState(false);
 
   // Admin Proctor Moderation state
@@ -214,6 +217,12 @@ export default function App() {
   // Periodic and on-focus background synchronization to guarantee cross-user updates
   useEffect(() => {
     const syncWithServer = async () => {
+      fetch('/api/announcements')
+        .then((res) => res.json())
+        .then((data: CampusAnnouncement[]) => {
+          if (Array.isArray(data)) setAnnouncements(data);
+        })
+        .catch(() => {});
       try {
         const freshListings = await realtimeService.fetchListings();
         if (Array.isArray(freshListings) && freshListings.length > 0) {
@@ -266,7 +275,8 @@ export default function App() {
     const unsubscribe = realtimeService.subscribe((evt) => {
       // 1. Initial State from Server
       if (evt.type === 'INIT_CAMPUS_FEED') {
-        const { listings: l, requests: r, exchanges: e } = evt.payload;
+        const { listings: l, requests: r, exchanges: e, announcements: a } = evt.payload;
+        if (Array.isArray(a)) setAnnouncements(a);
         if (Array.isArray(l) && l.length > 0) {
           setListings(l);
           safeStorage.setJSON('idhar_udhar_listings', l);
@@ -313,22 +323,45 @@ export default function App() {
 
       // 3. Real-Time Listing Updated
       if (evt.type === 'LISTING_UPDATED') {
-        const { id, status } = evt.payload;
-        setListings((prev) => {
-          const updated = prev.map((l) => (l.id === id ? { ...l, status } : l));
-          safeStorage.setJSON('idhar_udhar_listings', updated);
-          return updated;
-        });
+        const updatedListing: Listing | undefined = evt.payload?.listing;
+        if (updatedListing) {
+          setListings((prev) => {
+            const updated = prev.map((l) => (l.id === updatedListing.id ? updatedListing : l));
+            safeStorage.setJSON('idhar_udhar_listings', updated);
+            return updated;
+          });
+          setSelectedListingDetail((prev) => (prev?.id === updatedListing.id ? updatedListing : prev));
+          setActiveChatListing((prev) => (prev?.id === updatedListing.id ? updatedListing : prev));
+        } else if (evt.payload?.id) {
+          const { id, status } = evt.payload;
+          setListings((prev) => {
+            const updated = prev.map((l) => (l.id === id ? { ...l, status } : l));
+            safeStorage.setJSON('idhar_udhar_listings', updated);
+            return updated;
+          });
+        }
       }
 
       // 4. Real-Time Listing Deleted
       if (evt.type === 'LISTING_DELETED') {
-        const { id } = evt.payload;
-        setListings((prev) => {
-          const updated = prev.filter((l) => l.id !== id);
-          safeStorage.setJSON('idhar_udhar_listings', updated);
-          return updated;
-        });
+        const id = evt.payload?.id || evt.payload?.listingId;
+        if (id) {
+          setListings((prev) => {
+            const updated = prev.filter((l) => l.id !== id);
+            safeStorage.setJSON('idhar_udhar_listings', updated);
+            return updated;
+          });
+          setSelectedListingDetail((prev) => (prev?.id === id ? null : prev));
+          setActiveChatListing((prev) => (prev?.id === id ? null : prev));
+        }
+      }
+
+      // 4b. Real-Time Thread Deleted
+      if (evt.type === 'THREAD_DELETED') {
+        const deletedThreadId = evt.payload?.threadId || evt.payload?.id;
+        if (deletedThreadId) {
+          setActiveChatThread((prev) => (prev?.id === deletedThreadId ? null : prev));
+        }
       }
 
       // 5. Real-Time Request Created ("Request Daalna")
@@ -368,6 +401,15 @@ export default function App() {
         });
       }
 
+      // 6.5. Real-Time User Deleted (Force Logout if Current User)
+      if (evt.type === 'USER_DELETED') {
+        const userId = evt.payload.userId || evt.payload.id;
+        // If the currently logged in user was deleted by an admin, force log them out
+        if (currentUser && currentUser.id === userId) {
+          handleLogout();
+        }
+      }
+
       // 7. Real-Time Exchange Created
       if (evt.type === 'EXCHANGE_CREATED') {
         const ex: ExchangeSession = evt.payload.exchange;
@@ -377,6 +419,68 @@ export default function App() {
           safeStorage.setJSON('idhar_udhar_exchanges', updated);
           return updated;
         });
+      }
+
+      
+      // Announcements Real-Time
+      if (evt.type === 'ANNOUNCEMENT_CREATED') {
+        const ann: CampusAnnouncement = evt.payload.announcement || evt.payload;
+        if (ann && ann.id) {
+          setAnnouncements((prev) => [ann, ...prev.filter((item) => item.id !== ann.id)]);
+        }
+      }
+
+      if (evt.type === 'ANNOUNCEMENT_DELETED') {
+        const id = evt.payload.id || evt.payload;
+        setAnnouncements((prev) => prev.filter((item) => item.id !== id));
+      }
+
+      // Exchanges Rating Real-Time
+      if (evt.type === 'EXCHANGE_UPDATED' || evt.type === 'EXCHANGE_RATED') {
+        const ex: ExchangeSession = evt.payload.exchange || evt.payload;
+        if (ex && ex.id) {
+          setExchanges((prev) => {
+            const updated = prev.map((item) => (item.id === ex.id ? { ...item, ...ex } : item));
+            safeStorage.setJSON('idhar_udhar_exchanges', updated);
+            if (ex.sellerId) {
+              recalculateSellerReputation(ex.sellerId, updated);
+            }
+            return updated;
+          });
+        }
+      }
+
+      if (evt.type === 'SELLER_RATED') {
+        const { sellerId, buyerName, rating, review, listingTitle } = evt.payload;
+        if (currentUser && currentUser.id === sellerId) {
+          if (rating === 1) {
+            setActiveNotification({
+              id: `warning-${Date.now()}`,
+              title: `⚠️ Seller Suspension Warning`,
+              body: `"You were constantly rated as 1, please review products to avoid suspension"`,
+              collegeName: 'Campus Moderation Desk',
+              hostelName: 'Policy Warning',
+              requesterName: 'Campus Proctor',
+              requesterPhone: '',
+              roomNumber: '',
+              timestamp: 'Just now',
+              requestId: 'proctor-warning',
+            });
+          } else {
+            setActiveNotification({
+              id: `notif-${Date.now()}`,
+              title: `⭐ New Buyer Rating (${rating} Stars)`,
+              body: `"${review || 'Great transaction!'}" by ${buyerName} for ${listingTitle}`,
+              collegeName: 'UIET Kurukshetra',
+              hostelName: 'Reputation System',
+              requesterName: buyerName || 'Campus Peer',
+              requesterPhone: '',
+              roomNumber: '',
+              timestamp: 'Just now',
+              requestId: 'rating',
+            });
+          }
+        }
       }
 
       // 8. Real-Time Exchange Completed
@@ -542,6 +646,7 @@ const toLocalDateString = (d: Date) =>
               day: 'numeric',
               month: 'short',
               year: 'numeric',
+              timeZone: 'Asia/Kolkata',
             });
 
             const alertTitle =
@@ -741,6 +846,46 @@ const toLocalDateString = (d: Date) =>
     broadcastSync('SYNC_LISTINGS', updated);
   };
 
+  // Update Listing - Persists updates immediately and broadcasts over WebSockets
+  const handleUpdateListing = async (updatedListing: Listing) => {
+    const updated = listings.map((l) => (l.id === updatedListing.id ? updatedListing : l));
+    setListings(updated);
+    safeStorage.setJSON('idhar_udhar_listings', updated);
+
+    if (selectedListingDetail?.id === updatedListing.id) {
+      setSelectedListingDetail(updatedListing);
+    }
+    if (activeChatListing?.id === updatedListing.id) {
+      setActiveChatListing(updatedListing);
+    }
+
+    try {
+      await fetch(`/api/listings/${updatedListing.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedListing),
+      });
+    } catch (err) {
+      console.warn('Failed to update listing via PUT endpoint', err);
+    }
+
+    chatService.updateListing(updatedListing);
+    broadcastSync('SYNC_LISTINGS', updated);
+
+    setActiveNotification({
+      id: `upd-${Date.now()}`,
+      title: 'Listing Updated',
+      body: `"${updatedListing.title}" details have been updated and broadcast across campus.`,
+      collegeName: updatedListing.collegeName,
+      hostelName: updatedListing.hostelName,
+      requesterName: updatedListing.sellerName,
+      requesterPhone: updatedListing.sellerPhone,
+      roomNumber: updatedListing.roomNumber,
+      timestamp: 'Just now',
+      requestId: updatedListing.id,
+    });
+  };
+
   // Delete Listing - Broadcasts to all peers in real time
   const handleDeleteListing = (id: string) => {
     const updated = listings.filter(l => l.id !== id);
@@ -773,6 +918,8 @@ const toLocalDateString = (d: Date) =>
           id: listingId,
           reason,
           adminName: currentUser?.fullName || 'Campus Proctor',
+          adminId: currentUser?.id,
+          requesterId: currentUser?.id,
         }),
       });
     } catch {}
@@ -794,8 +941,10 @@ const toLocalDateString = (d: Date) =>
           listingTitle: target.title,
           sellerId: target.sellerId,
           reason,
-          timestamp: new Date().toLocaleTimeString(),
+          timestamp: new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' }),
           adminName: currentUser?.fullName || 'Campus Proctor',
+          adminId: currentUser?.id,
+          requesterId: currentUser?.id,
         },
         ...prev,
       ]);
@@ -824,6 +973,8 @@ const toLocalDateString = (d: Date) =>
           userId,
           reason,
           adminName: currentUser?.fullName || 'Campus Proctor',
+          adminId: currentUser?.id,
+          requesterId: currentUser?.id,
         }),
       });
       const data = await res.json();
@@ -855,6 +1006,8 @@ const toLocalDateString = (d: Date) =>
           suspended,
           reason,
           adminName: currentUser?.fullName || 'Campus Proctor',
+          adminId: currentUser?.id,
+          requesterId: currentUser?.id,
         }),
       });
       const data = await res.json();
@@ -877,6 +1030,33 @@ const toLocalDateString = (d: Date) =>
       timestamp: 'Just now',
       requestId: `susp-${userId}`,
     });
+  };
+
+  const handleAdminMessageUser = (targetUserId: string, targetUserName: string) => {
+    if (!currentUser) return;
+    const adminThreadId = `thread-admin-${targetUserId}`;
+    const supportThread: ChatThread = {
+      id: adminThreadId,
+      listingId: 'system-admin',
+      listingTitle: 'Official Proctor Support',
+      listingPrice: 0,
+      sellerId: targetUserId,
+      sellerName: targetUserName,
+      sellerHostel: 'Campus',
+      sellerPhone: '',
+      buyerId: currentUser.id,
+      buyerName: 'Chief Proctor',
+      buyerHostel: 'Admin Office',
+      buyerPhone: '9999999999',
+      lastMessageText: 'Admin initiated a chat.',
+      lastMessageTime: 'Just now',
+      lastMessageSenderId: currentUser.id,
+      unreadCount: 0,
+      updatedAt: Date.now(),
+    };
+    setActiveChatListing(null);
+    setActiveChatThread(supportThread);
+    setCurrentTab('inbox');
   };
 
   // Create "Request Daalna" Alert & broadcast in real time across the campus network
@@ -961,57 +1141,41 @@ const toLocalDateString = (d: Date) =>
   };
 
   // Submit Rating for Seller after Handover
-  const handleSubmitSellerRating = (exchangeId: string, sellerId: string, rating: number, reviewText: string) => {
-    const { reputation } = recordSellerRating(sellerId, rating);
-
-    const updated: ExchangeSession[] = exchanges.map((ex) =>
+  const handleSubmitSellerRating = async (exchangeId: string, sellerId: string, rating: number, reviewText: string) => {
+    const updatedExchanges: ExchangeSession[] = exchanges.map((ex) =>
       ex.id === exchangeId
         ? { ...ex, buyerRating: rating, buyerReview: reviewText, ratedAt: 'Just now' }
         : ex
     );
-    setExchanges(updated);
-    broadcastSync('SYNC_EXCHANGES', updated);
+    setExchanges(updatedExchanges);
+    recalculateSellerReputation(sellerId, updatedExchanges);
 
-    if (reputation.isTrustworthy) {
-      setActiveNotification({
-        id: `notif-${Date.now()}`,
-        title: '🌟 TRUSTWORTHY SELLER Earned!',
-        body: `Seller earned the "TRUSTWORTHY SELLER" tag after 10+ consecutive ratings of 4★ or above!`,
-        collegeName: 'UIET Kurukshetra',
-        hostelName: 'Reputation System',
-        requesterName: 'Campus Trust Protocol',
-        requesterPhone: '',
-        roomNumber: 'UIET',
-        timestamp: 'Just now',
-        requestId: 'reputation'
+    try {
+      await fetch(`/api/exchanges/${exchangeId}/rate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          buyerRating: rating,
+          buyerReview: reviewText,
+          buyerId: currentUser?.id,
+        }),
       });
-    } else if (reputation.hasOneStarWarning) {
-      setActiveNotification({
-        id: `notif-${Date.now()}`,
-        title: '⚠️ Seller Suspension Warning',
-        body: 'You were constantly rated as 1, please review products to avoid suspension',
-        collegeName: 'UIET Kurukshetra',
-        hostelName: 'Safety Review',
-        requesterName: 'Marketplace Safety',
-        requesterPhone: '',
-        roomNumber: 'Notice Board',
-        timestamp: 'Just now',
-        requestId: 'warning'
-      });
-    } else {
-      setActiveNotification({
-        id: `notif-${Date.now()}`,
-        title: 'Rating Submitted!',
-        body: `Thank you! Feedback recorded (${rating}★). It helps peers identify reliable campus sellers.`,
-        collegeName: 'UIET Kurukshetra',
-        hostelName: 'Handover Completed',
-        requesterName: 'Campus Peer',
-        requesterPhone: '',
-        roomNumber: '',
-        timestamp: 'Just now',
-        requestId: 'feedback'
-      });
+    } catch (err) {
+      console.warn('Failed to submit seller rating to server:', err);
     }
+
+    setActiveNotification({
+      id: `notif-${Date.now()}`,
+      title: 'Thank you for your rating!',
+      body: `Your feedback (${rating}★) has been recorded. It helps peers identify reliable campus sellers.`,
+      collegeName: 'UIET Kurukshetra',
+      hostelName: 'Handover Completed',
+      requesterName: 'Campus Peer',
+      requesterPhone: '',
+      roomNumber: '',
+      timestamp: 'Just now',
+      requestId: 'feedback',
+    });
   };
 
   // When clicking "I have this" on a request
@@ -1198,6 +1362,10 @@ const toLocalDateString = (d: Date) =>
                       setActiveChatListing(matched || null);
                     }}
                     onOpenMarketplace={() => setCurrentTab('home')}
+                    onDeleteThread={(threadId) => {
+                      setActiveChatThread((prev) => (prev?.id === threadId ? null : prev));
+                      setActiveChatListing((prev) => (prev?.id === threadId ? null : prev));
+                    }}
                   />
                 )
               )}
@@ -1379,6 +1547,10 @@ const toLocalDateString = (d: Date) =>
               onAdminRemoveListing={handleAdminRemoveListing}
               onAdminWarnUser={handleAdminWarnUser}
               onAdminSuspendUser={handleAdminSuspendUser}
+              onEditListing={(listing) => {
+                setSelectedListingDetail(null);
+                setEditingListing(listing);
+              }}
             />
 
             {/* 2. Campus Exchange Scheduling Modal */}
@@ -1399,6 +1571,17 @@ const toLocalDateString = (d: Date) =>
               onClose={() => setIsCreateListingOpen(false)}
               onSubmit={handleCreateListing}
             />
+
+            {/* 3b. Edit Listing Modal */}
+            {editingListing && (
+              <EditListingModal
+                currentUser={currentUser}
+                listing={editingListing}
+                isOpen={!!editingListing}
+                onClose={() => setEditingListing(null)}
+                onUpdate={handleUpdateListing}
+              />
+            )}
 
             {/* 4. "Request Daalna" Modal with photo attachment */}
             <CreateRequestModal
@@ -1541,6 +1724,7 @@ const toLocalDateString = (d: Date) =>
                 onRemoveListing={handleAdminRemoveListing}
                 onWarnUser={handleAdminWarnUser}
                 onSuspendUser={handleAdminSuspendUser}
+                onMessageUser={handleAdminMessageUser}
               />
             )}
           </>

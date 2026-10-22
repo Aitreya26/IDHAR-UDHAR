@@ -5,11 +5,13 @@ import {
   MessageCircle, 
   ChevronRight, 
   ShieldCheck, 
+  ShieldAlert,
   Search, 
   Sparkles,
   Store,
   Clock,
-  Radio
+  Radio,
+  Trash2
 } from 'lucide-react';
 
 interface InboxViewProps {
@@ -17,6 +19,7 @@ interface InboxViewProps {
   listings: Listing[];
   onSelectThread: (thread: ChatThread) => void;
   onOpenMarketplace: () => void;
+  onDeleteThread?: (threadId: string) => void;
 }
 
 export const InboxView: React.FC<InboxViewProps> = ({
@@ -24,6 +27,7 @@ export const InboxView: React.FC<InboxViewProps> = ({
   listings,
   onSelectThread,
   onOpenMarketplace,
+  onDeleteThread,
 }) => {
   const [threads, setThreads] = useState<ChatThread[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -87,6 +91,16 @@ export const InboxView: React.FC<InboxViewProps> = ({
         }
       }
 
+      if (event.type === 'THREAD_DELETED') {
+        const deletedId = event.payload?.threadId;
+        if (deletedId) {
+          setThreads((prev) => prev.filter((t) => t.id !== deletedId));
+          if (onDeleteThread) {
+            onDeleteThread(deletedId);
+          }
+        }
+      }
+
       if (event.type === 'MESSAGES_READ') {
         const { threadId, userId } = event.payload;
         if (userId === currentUser.id) {
@@ -101,7 +115,15 @@ export const InboxView: React.FC<InboxViewProps> = ({
       isMounted = false;
       unsubscribe();
     };
-  }, [currentUser.id, currentUser.fullName]);
+  }, [currentUser.id, currentUser.fullName, onDeleteThread]);
+
+  const handleDeleteThread = (threadId: string) => {
+    chatService.deleteThread(threadId);
+    setThreads((prev) => prev.filter((t) => t.id !== threadId));
+    if (onDeleteThread) {
+      onDeleteThread(threadId);
+    }
+  };
 
   // Filter threads by search query
   const filteredThreads = threads.filter((t) => {
@@ -154,6 +176,9 @@ export const InboxView: React.FC<InboxViewProps> = ({
           </div>
         ) : filteredThreads.length > 0 ? (
           filteredThreads.map((thread) => {
+            const isSystemAdmin = thread.listingId === 'system-admin';
+            const isOfficialAdmin = Boolean(thread.isOfficialAdminContext);
+            const isAdminChat = isSystemAdmin || isOfficialAdmin;
             const isSeller = thread.sellerId === currentUser.id;
             const peerName = isSeller ? thread.buyerName : thread.sellerName;
             const peerId = isSeller ? thread.buyerId : thread.sellerId;
@@ -167,16 +192,24 @@ export const InboxView: React.FC<InboxViewProps> = ({
                 key={thread.id}
                 onClick={() => onSelectThread(thread)}
                 className={`bg-white dark:bg-[#1E293B] rounded-2xl p-4 border transition-all cursor-pointer flex items-center gap-3.5 group relative ${
-                  hasUnread
+                  isAdminChat
+                    ? 'border-purple-200 dark:border-purple-800/60 bg-purple-50/50 dark:bg-purple-900/20 shadow-md'
+                    : hasUnread
                     ? 'border-[#4F46E5]/40 dark:border-cyan-500/40 shadow-md bg-indigo-50/20 dark:bg-indigo-950/20'
                     : 'border-slate-100 dark:border-slate-800 shadow-xs hover:shadow-md hover:border-slate-200 dark:hover:border-slate-700'
                 }`}
               >
                 {/* Avatar with live online dot */}
                 <div className="relative shrink-0">
-                  <div className="w-12 h-12 rounded-full bg-[#EDE9FE] dark:bg-indigo-950/60 flex items-center justify-center font-bold text-[#4F46E5] dark:text-cyan-400 text-base shadow-inner">
-                    {peerName.charAt(0)}
-                  </div>
+                  {isAdminChat ? (
+                    <div className="w-12 h-12 rounded-full bg-purple-100 dark:bg-purple-900/60 flex items-center justify-center text-purple-700 dark:text-purple-400 shadow-inner">
+                      <ShieldAlert className="w-6 h-6" />
+                    </div>
+                  ) : (
+                    <div className="w-12 h-12 rounded-full bg-[#EDE9FE] dark:bg-indigo-950/60 flex items-center justify-center font-bold text-[#4F46E5] dark:text-cyan-400 text-base shadow-inner">
+                      {peerName.charAt(0)}
+                    </div>
+                  )}
                   <span
                     className={`absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-white dark:border-[#1E293B] ${
                       isPeerOnline ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'
@@ -189,10 +222,16 @@ export const InboxView: React.FC<InboxViewProps> = ({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5 min-w-0">
-                      <h3 className="text-sm font-bold text-[#0F172A] dark:text-white group-hover:text-[#4F46E5] dark:group-hover:text-cyan-400 transition-colors truncate">
+                      <h3 className={`text-sm font-bold transition-colors truncate ${
+                        isAdminChat ? 'text-purple-900 dark:text-purple-200 font-black' : 'text-[#0F172A] dark:text-white group-hover:text-[#4F46E5] dark:group-hover:text-cyan-400'
+                      }`}>
                         {peerName}
                       </h3>
-                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                      {isAdminChat ? (
+                        <ShieldAlert className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
+                      ) : (
+                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                      )}
                       <span className="text-[10px] text-slate-400 truncate max-w-[100px] hidden sm:inline">
                         · {peerHostel}
                       </span>
@@ -203,7 +242,9 @@ export const InboxView: React.FC<InboxViewProps> = ({
                         {thread.lastMessageTime}
                       </span>
                       {hasUnread && (
-                        <span className="w-5 h-5 rounded-full bg-[#4F46E5] dark:bg-cyan-500 text-white dark:text-slate-950 text-[10px] font-black flex items-center justify-center shadow-xs">
+                        <span className={`w-5 h-5 rounded-full text-white text-[10px] font-black flex items-center justify-center shadow-xs ${
+                          isAdminChat ? 'bg-purple-600' : 'bg-[#4F46E5] dark:bg-cyan-500 dark:text-slate-950'
+                        }`}>
                           {thread.unreadCount}
                         </span>
                       )}
@@ -212,21 +253,33 @@ export const InboxView: React.FC<InboxViewProps> = ({
 
                   {/* Item subject line */}
                   <div className="flex items-center gap-1.5 mt-0.5">
-                    <span className="text-[11px] font-semibold text-[#2563EB] dark:text-cyan-400 truncate max-w-[200px] sm:max-w-[280px]">
-                      Re: {thread.listingTitle}
+                    <span className={`text-[11px] font-semibold truncate max-w-[180px] sm:max-w-[260px] ${isAdminChat ? 'text-purple-700 dark:text-purple-400' : 'text-[#2563EB] dark:text-cyan-400'}`}>
+                      {isSystemAdmin ? thread.listingTitle : `Re: ${thread.listingTitle}`}
                     </span>
-                    <span className="text-[10px] text-slate-400 font-mono">
-                      · ₹{thread.listingPrice}
-                    </span>
-                    <span className="text-[9px] px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 font-bold ml-auto shrink-0 uppercase">
-                      {isSeller ? 'Buyer' : 'Seller'}
-                    </span>
+
+                    {!isSystemAdmin && (
+                      <span className="text-[10px] text-slate-400 font-mono">
+                        ₹{thread.listingPrice}
+                      </span>
+                    )}
+
+                    {isAdminChat ? (
+                      <span className="text-[9px] px-1.5 py-0.2 rounded bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300 font-black ml-auto shrink-0 uppercase tracking-wider border border-purple-200 dark:border-purple-800">
+                        ADMIN
+                      </span>
+                    ) : (
+                      <span className="text-[9px] px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 font-bold ml-auto shrink-0 uppercase">
+                        {isSeller ? 'Buyer' : 'Seller'}
+                      </span>
+                    )}
                   </div>
 
                   {/* Last message text preview */}
                   <p
                     className={`text-xs truncate mt-1 leading-normal ${
-                      hasUnread
+                      isAdminChat
+                        ? 'text-purple-900 dark:text-purple-200 font-semibold'
+                        : hasUnread
                         ? 'font-bold text-slate-900 dark:text-white'
                         : 'text-slate-500 dark:text-slate-400'
                     }`}
@@ -238,7 +291,20 @@ export const InboxView: React.FC<InboxViewProps> = ({
                   </p>
                 </div>
 
-                <ChevronRight className="w-5 h-5 text-slate-300 dark:text-slate-600 group-hover:text-[#4F46E5] dark:group-hover:text-cyan-400 group-hover:translate-x-0.5 transition-all shrink-0" />
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteThread(thread.id);
+                    }}
+                    className="p-1.5 rounded-xl text-slate-300 dark:text-slate-600 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
+                    title="Delete Conversation"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                  <ChevronRight className="w-5 h-5 text-slate-300 dark:text-slate-600 group-hover:text-[#4F46E5] dark:group-hover:text-cyan-400 group-hover:translate-x-0.5 transition-all" />
+                </div>
               </div>
             );
           })

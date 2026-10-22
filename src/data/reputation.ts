@@ -1,4 +1,4 @@
-import { SellerReputation, SellerRatingRecord } from '../types';
+import { SellerReputation, SellerRatingRecord, ExchangeSession } from '../types';
 import { safeStorage } from '../utils/storage';
 
 export const INITIAL_REPUTATIONS: Record<string, SellerReputation> = {
@@ -167,4 +167,31 @@ export const recordSellerRating = (
   safeStorage.setJSON('idhar_udhar_seller_reputations', cachedReputations);
 
   return { reputation: updatedRep, allReputations: cachedReputations };
+};
+
+export const recalculateSellerReputation = (
+  sellerId: string,
+  exchanges: ExchangeSession[]
+): SellerReputation => {
+  if (!cachedReputations) {
+    cachedReputations = safeStorage.getJSON<Record<string, SellerReputation>>(
+      'idhar_udhar_seller_reputations',
+      INITIAL_REPUTATIONS
+    );
+  }
+
+  // Find active, non-expunged rated exchanges for this seller
+  const sellerExchanges = (exchanges || []).filter(
+    (e) => e.sellerId === sellerId && typeof e.buyerRating === 'number' && e.buyerRating > 0
+  );
+
+  const initialHistory = INITIAL_REPUTATIONS[sellerId]?.ratingHistory || [];
+  const exchangeRatings = sellerExchanges.map((e) => e.buyerRating!);
+  const fullRatings = [...initialHistory, ...exchangeRatings];
+
+  const updatedRep = calculateReputation(sellerId, fullRatings);
+  cachedReputations[sellerId] = updatedRep;
+  safeStorage.setJSON('idhar_udhar_seller_reputations', cachedReputations);
+
+  return updatedRep;
 };

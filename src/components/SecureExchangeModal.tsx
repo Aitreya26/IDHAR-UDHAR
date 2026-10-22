@@ -31,7 +31,9 @@ export const SecureExchangeModal: React.FC<SecureExchangeModalProps> = ({
   const currentCollege = COLLEGES.find(c => c.id === listing.collegeId) || COLLEGES[0];
   const safeSpots = currentCollege.safeMeetupSpots;
 
-  const [selectedSpot, setSelectedSpot] = useState(safeSpots[0] || 'Hostel Common Room');
+  const [selectedSpot, setSelectedSpot] = useState(safeSpots[0] || 'University Market');
+  const [customSpot, setCustomSpot] = useState('');
+  const [customSpotError, setCustomSpotError] = useState('');
   const [meetingTime, setMeetingTime] = useState('Today at 5:30 PM (Post Classes)');
   const [exchangeDueDate, setExchangeDueDate] = useState(() => {
     if (listing.rentDueDate) return listing.rentDueDate;
@@ -44,6 +46,16 @@ export const SecureExchangeModal: React.FC<SecureExchangeModalProps> = ({
   if (!isOpen) return null;
 
   const handleStartExchange = () => {
+    let finalLocation = selectedSpot;
+    if (selectedSpot === '__custom__') {
+      const trimmed = customSpot.trim();
+      if (!trimmed) {
+        setCustomSpotError('Please enter your specific campus meetup spot');
+        return;
+      }
+      finalLocation = trimmed;
+    }
+
     const session: ExchangeSession = {
       id: `exch-${Date.now()}`,
       listingId: listing.id,
@@ -63,7 +75,7 @@ export const SecureExchangeModal: React.FC<SecureExchangeModalProps> = ({
       buyerPhone: currentUser.phone,
       buyerHostel: currentUser.hostelName,
       buyerRoom: currentUser.roomNumber,
-      campusLocation: selectedSpot,
+      campusLocation: finalLocation,
       exchangeCode: exchangePin,
       scheduledTime: meetingTime,
       status: 'scheduled',
@@ -128,7 +140,7 @@ export const SecureExchangeModal: React.FC<SecureExchangeModalProps> = ({
               <div>
                 <span className="text-[10px] font-bold uppercase text-slate-400 block">Due Date for Return</span>
                 <span className="text-sm font-extrabold text-[#0F172A] dark:text-white">
-                  {new Date(exchangeDueDate).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
+                  {new Date(exchangeDueDate).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' })}
                 </span>
               </div>
               <input
@@ -166,12 +178,66 @@ export const SecureExchangeModal: React.FC<SecureExchangeModalProps> = ({
                   type="radio"
                   name="campusSpot"
                   checked={selectedSpot === spot}
-                  onChange={() => setSelectedSpot(spot)}
+                  onChange={() => {
+                    setSelectedSpot(spot);
+                    setCustomSpotError('');
+                  }}
                   className="accent-[#4F46E5] dark:accent-cyan-400"
                 />
                 <span className="flex-1">{spot}</span>
               </label>
             ))}
+
+            {/* Custom / Other Location Option */}
+            <div
+              className={`rounded-2xl border transition-all ${
+                selectedSpot === '__custom__'
+                  ? 'bg-[#EEF2FF] dark:bg-cyan-950/40 border-[#4F46E5] dark:border-cyan-400 text-[#4F46E5] dark:text-cyan-300 shadow-xs'
+                  : 'bg-[#F8FAFC] dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-300'
+              }`}
+            >
+              <label className="flex items-center gap-3 p-3 text-xs cursor-pointer">
+                <input
+                  type="radio"
+                  name="campusSpot"
+                  checked={selectedSpot === '__custom__'}
+                  onChange={() => {
+                    setSelectedSpot('__custom__');
+                    setCustomSpotError('');
+                  }}
+                  className="accent-[#4F46E5] dark:accent-cyan-400"
+                />
+                <div className="flex-1 flex items-center justify-between">
+                  <span className="font-bold">Other / Custom Location</span>
+                  <span className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wider font-semibold">Custom</span>
+                </div>
+              </label>
+
+              {selectedSpot === '__custom__' && (
+                <div className="px-3 pb-3 pt-1 space-y-1.5 animate-in fade-in duration-150">
+                  <input
+                    type="text"
+                    value={customSpot}
+                    onChange={(e) => {
+                      setCustomSpot(e.target.value);
+                      if (customSpotError) setCustomSpotError('');
+                    }}
+                    placeholder="Enter specific spot (e.g. Near UIET Canteen, Admin Lawn, Block B)..."
+                    maxLength={70}
+                    autoFocus
+                    className="w-full px-3.5 py-2.5 bg-white dark:bg-slate-900 border border-indigo-200 dark:border-cyan-500/60 rounded-xl text-xs text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#4F46E5] dark:focus:ring-cyan-400 transition-all shadow-xs"
+                  />
+                  {customSpotError && (
+                    <p className="text-[11px] text-rose-500 font-semibold px-1">
+                      {customSpotError}
+                    </p>
+                  )}
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500 px-1">
+                    Keep meetups in well-lit, public areas accessible to both students during daytime.
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -217,7 +283,7 @@ export const SecureExchangeModal: React.FC<SecureExchangeModalProps> = ({
             <span>Campus Safety Rule:</span>
           </div>
           <p>
-            Always meet in designated campus public spots during daylight or canteen hours. Settle payment via cash/UPI only after testing the drafter or electronics.
+            Always meet in designated campus public spots during daylight or canteen hours. Settle payment via cash/UPI only after testing the accessory.
           </p>
         </div>
 

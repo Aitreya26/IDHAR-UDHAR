@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Listing, CategoryType, UserProfile } from '../types';
+import { Listing, CategoryType, UserProfile, CampusAnnouncement } from '../types';
 import { ItemVisual } from './ItemVisual';
 import { getSellerReputation } from '../data/reputation';
 import { 
@@ -22,6 +22,7 @@ import {
 interface MarketplaceFeedProps {
   listings: Listing[];
   currentUser: UserProfile;
+  announcements?: CampusAnnouncement[];
   onSelectListing: (listing: Listing) => void;
   onOpenSearch: () => void;
   onSelectCategory: (category: CategoryType) => void;
@@ -32,6 +33,7 @@ interface MarketplaceFeedProps {
 export const MarketplaceFeed: React.FC<MarketplaceFeedProps> = ({
   listings,
   currentUser,
+  announcements = [],
   onSelectListing,
   onOpenSearch,
   onSelectCategory,
@@ -57,6 +59,47 @@ export const MarketplaceFeed: React.FC<MarketplaceFeedProps> = ({
 
   return (
     <div className="w-full space-y-6 pb-12 select-none">
+      {/* 0. Campus-Wide Announcements Banner */}
+      {announcements && announcements.length > 0 && (
+        <div className="px-5 pt-3 space-y-2.5">
+          {announcements.map((ann) => {
+            const priorityStyles =
+              ann.priority === 'urgent'
+                ? 'bg-rose-600 text-white animate-pulse shadow-md shadow-rose-600/20'
+                : ann.priority === 'high'
+                ? 'bg-amber-500 text-slate-950 font-semibold shadow-md shadow-amber-500/20'
+                : 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20';
+
+            return (
+              <div
+                key={ann.id}
+                className={`p-3.5 rounded-2xl ${priorityStyles} transition-all border border-black/10`}
+              >
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <div className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider">
+                    <Bell className="w-4 h-4 shrink-0" />
+                    <span>{ann.adminName || 'Chief Proctor Office'}</span>
+                    <span className="text-[9px] px-1.5 py-0.2 rounded-full border border-current font-bold uppercase">
+                      {ann.priority}
+                    </span>
+                  </div>
+                  <span className="text-[10px] opacity-80 font-mono">
+                    {new Date(ann.timestamp).toLocaleTimeString('en-IN', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      timeZone: 'Asia/Kolkata',
+                    })}
+                  </span>
+                </div>
+                <p className="text-xs leading-relaxed font-medium whitespace-pre-wrap">
+                  {ann.message}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {/* 1. Search Bar */}
       <div className="px-5 pt-3">
         <div 

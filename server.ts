@@ -4,7 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { WebSocketServer, WebSocket } from 'ws';
-import type { Listing, CampusRequest, ExchangeSession, ChatMessage, ChatThread, UserModerationRecord, UserProfile } from './src/types.ts';
+import type { Listing, CampusRequest, ExchangeSession, ChatMessage, ChatThread, UserModerationRecord, UserProfile, CampusAnnouncement } from './src/types.ts';
 import { INITIAL_LISTINGS, INITIAL_REQUESTS } from './src/data/mockData.ts';
 import { PREDEFINED_ACCOUNTS } from './src/data/predefinedUsers.ts';
 
@@ -65,7 +65,7 @@ let serverExchanges: ExchangeSession[] = [
     buyerPhone: '+91 9478579360',
     buyerHostel: 'Narhari Bhawan',
     buyerRoom: 'Room 112',
-    campusLocation: 'Nescafe Booth (UIET)',
+    campusLocation: 'University Market',
     exchangeCode: '4921',
     scheduledTime: 'Today at 5:30 PM (Post Classes)',
     status: 'scheduled',
@@ -99,6 +99,9 @@ let adminRemovalLogs: {
   timestamp: string;
   adminName: string;
 }[] = [];
+
+// 3.6. Campus-Wide Announcements
+let serverAnnouncements: CampusAnnouncement[] = [];
 
 // 4. Authoritative Chat Threads & Messages
 const threads: Map<string, ChatThread> = new Map([
@@ -302,7 +305,10 @@ function loadServerState() {
           messages.set(key, value);
         }
       }
-      console.log(`[SERVER] State loaded from disk: ${serverListings.length} listings, ${threads.size} threads, ${Object.keys(serverUsers).length} registered users`);
+      if (Array.isArray(data.announcements)) {
+        serverAnnouncements = data.announcements;
+      }
+      console.log(`[SERVER] State loaded from disk: ${serverListings.length} listings, ${threads.size} threads, ${serverAnnouncements.length} announcements, ${Object.keys(serverUsers).length} registered users`);
     } else {
       saveServerState();
     }
@@ -325,6 +331,7 @@ function saveServerState() {
           users: serverUsers,
           threads: Array.from(threads.entries()),
           messages: Array.from(messages.entries()),
+          announcements: serverAnnouncements,
         },
         null,
         2
@@ -391,6 +398,7 @@ wss.on('connection', (ws) => {
         exchanges: serverExchanges,
         userModeration: userModerationMap,
         adminRemovalLogs: adminRemovalLogs,
+        announcements: serverAnnouncements,
       })
     );
   } catch {}
@@ -457,11 +465,59 @@ wss.on('connection', (ws) => {
       if (msg.type === 'DELETE_LISTING') {
         const { id } = msg;
         serverListings = serverListings.filter((l) => l.id !== id);
+
+        // Cascade delete all threads and messages tied to this listingId
+        for (const [threadId, thread] of threads.entries()) {
+          if (thread.listingId === id) {
+            threads.delete(threadId);
+            messages.delete(threadId);
+            broadcastToAll({ type: 'THREAD_DELETED', threadId });
+          }
+        }
+
         saveServerState();
         broadcastToAll({
           type: 'LISTING_DELETED',
           id,
         });
+      }
+
+      // 4.5. Real-time Listing Full Update
+      if (msg.type === 'UPDATE_LISTING') {
+        const { listing } = msg;
+        if (listing && listing.id) {
+          const idx = serverListings.findIndex((l) => l.id === listing.id);
+          if (idx >= 0) {
+            serverListings[idx] = { ...serverListings[idx], ...listing };
+            for (const thread of threads.values()) {
+              if (thread.listingId === listing.id) {
+                if (listing.title) thread.listingTitle = listing.title;
+                if (typeof listing.price === 'number') thread.listingPrice = listing.price;
+                if (listing.imageUrl) thread.listingImage = listing.imageUrl;
+              }
+            }
+            saveServerState();
+            broadcastToAll({
+              type: 'LISTING_UPDATED',
+              id: listing.id,
+              listing: serverListings[idx],
+            });
+          }
+        }
+      }
+
+      // 4.6. Real-time Thread Deletion
+      if (msg.type === 'DELETE_THREAD') {
+        const { threadId } = msg;
+        if (threadId) {
+          threads.delete(threadId);
+          messages.delete(threadId);
+          saveServerState();
+          broadcastToAll({
+            type: 'THREAD_DELETED',
+            threadId,
+          });
+        }
       }
 
       // 5. Real-time Request Daalna Creation
@@ -605,10 +661,11 @@ wss.on('connection', (ws) => {
             buyerHostel: msg.buyerHostel || msg.senderHostel || 'UIET Hostel',
             buyerPhone,
             lastMessageText: text,
-            lastMessageTime: new Date().toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true }),
+            lastMessageTime: new Date().toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' }),
             lastMessageSenderId: senderId,
             unreadCount: 1,
             updatedAt: Date.now(),
+            isOfficialAdminContext: Boolean(msg.isOfficialAdminContext || (buyerId && serverUsers[buyerId.replace('user-', '')]?.isAdmin) || buyerId === 'user-admin'),
           };
           threads.set(threadId, thread);
         }
@@ -624,7 +681,7 @@ wss.on('connection', (ws) => {
           return;
         }
 
-        const formattedTime = new Date().toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true });
+        const formattedTime = new Date().toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' });
 
         const newMsg: ChatMessage = {
           id: msgId,
@@ -646,12 +703,7 @@ wss.on('connection', (ws) => {
         if (thread) {
           thread.lastMessageText = text;
           thread.lastMessageTime = formattedTime;
-          // If the reply is from the receiver of previous message, reset unreadCount to 1, otherwise increment
-          if (thread.lastMessageSenderId && thread.lastMessageSenderId !== senderId) {
-            thread.unreadCount = 1;
-          } else {
-            thread.unreadCount = (thread.unreadCount || 0) + 1;
-          }
+          thread.unreadCount = thread.lastMessageSenderId !== senderId ? 1 : (thread.unreadCount || 0) + 1;
           thread.lastMessageSenderId = senderId;
           thread.updatedAt = Date.now();
           threads.set(thread.id, thread);
@@ -716,6 +768,16 @@ wss.on('connection', (ws) => {
         const { id, reason, adminName } = msg;
         const found = serverListings.find((l) => l.id === id);
         serverListings = serverListings.filter((l) => l.id !== id);
+
+        // Cascade delete all threads and messages tied to this listingId
+        for (const [threadId, thread] of threads.entries()) {
+          if (thread.listingId === id) {
+            threads.delete(threadId);
+            messages.delete(threadId);
+            broadcastToAll({ type: 'THREAD_DELETED', threadId });
+          }
+        }
+
         if (found) {
           adminRemovalLogs.unshift({
             id: `log-${Date.now()}`,
@@ -723,7 +785,7 @@ wss.on('connection', (ws) => {
             listingTitle: found.title,
             sellerId: found.sellerId,
             reason: reason?.trim() || undefined,
-            timestamp: new Date().toLocaleTimeString(),
+            timestamp: new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' }),
             adminName: adminName || 'Campus Proctor',
           });
         }
@@ -749,7 +811,7 @@ wss.on('connection', (ws) => {
           const warning = {
             id: `warn-${Date.now()}`,
             reason: reason.trim(),
-            timestamp: new Date().toLocaleTimeString(),
+            timestamp: new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' }),
             by: adminName || 'Campus Proctor',
           };
           userModerationMap[userId].warnings.push(warning);
@@ -876,9 +938,58 @@ app.post('/api/listings/status', (req, res) => {
   res.json({ success: true, id, status });
 });
 
+app.put('/api/listings/:id', (req, res) => {
+  const { id } = req.params;
+  const updateData = req.body as Partial<Listing>;
+
+  const idx = serverListings.findIndex((l) => l.id === id);
+  if (idx === -1) {
+    return res.status(404).json({ error: 'Listing not found' });
+  }
+
+  const existing = serverListings[idx];
+  const updatedListing: Listing = {
+    ...existing,
+    ...updateData,
+    id: existing.id,
+    sellerId: existing.sellerId,
+    sellerName: existing.sellerName,
+    sellerPhone: existing.sellerPhone,
+  };
+
+  serverListings[idx] = updatedListing;
+
+  for (const thread of threads.values()) {
+    if (thread.listingId === id) {
+      if (updatedListing.title) thread.listingTitle = updatedListing.title;
+      if (typeof updatedListing.price === 'number') thread.listingPrice = updatedListing.price;
+      if (updatedListing.imageUrl) thread.listingImage = updatedListing.imageUrl;
+    }
+  }
+
+  saveServerState();
+
+  broadcastToAll({
+    type: 'LISTING_UPDATED',
+    id,
+    listing: updatedListing,
+  });
+
+  res.json({ success: true, listing: updatedListing });
+});
+
 app.delete('/api/listings/:id', (req, res) => {
   const { id } = req.params;
   serverListings = serverListings.filter((l) => l.id !== id);
+
+  for (const [threadId, thread] of threads.entries()) {
+    if (thread.listingId === id) {
+      threads.delete(threadId);
+      messages.delete(threadId);
+      broadcastToAll({ type: 'THREAD_DELETED', threadId });
+    }
+  }
+
   saveServerState();
   broadcastToAll({
     type: 'LISTING_DELETED',
@@ -990,25 +1101,37 @@ app.post('/api/exchanges/reminder', (req, res) => {
   res.json({ success: true, exchangeId });
 });
 
-// ==========================================
-// --- USER REGISTRATION & AUTH PERSISTENCE API ---
-// ==========================================
+// Check duplicate phone or roll number for registration
+app.post('/api/users/check', (req, res) => {
+  const { phone, rollNumber } = req.body;
+  const cleanPhone = (phone || '').replace(/\D/g, '').slice(-10);
+  const cleanRoll = (rollNumber || '').toLowerCase().trim();
+  const users = Object.values(serverUsers);
+  const phoneExists = Boolean(cleanPhone) && users.some((u) => {
+    const uClean = (u.phone || '').replace(/\D/g, '').slice(-10);
+    return uClean === cleanPhone || (u.phone || '').includes(phone);
+  });
+  const rollExists = Boolean(cleanRoll) && users.some(
+    (u) => (u.rollNumber || '').toLowerCase().trim() === cleanRoll
+  );
+  res.json({ phoneExists, rollExists });
+});
 
 app.post('/api/users/register', (req, res) => {
-  const profile = req.body as UserProfile;
-  if (!profile || !profile.phone) {
+  const user = req.body as UserProfile;
+  if (!user || !user.phone) {
     return res.status(400).json({ error: 'Valid user profile with phone is required' });
   }
-  const cleanPhone = profile.phone.replace(/\D/g, '').slice(-10);
+  const cleanPhone = user.phone.replace(/\D/g, '').slice(-10);
   if (!cleanPhone || cleanPhone.length < 10) {
     return res.status(400).json({ error: 'Valid 10-digit phone number is required' });
   }
 
-  const userId = profile.id || `user-${cleanPhone}`;
+  const userId = user.id || `user-${cleanPhone}`;
   const savedUser: UserProfile = {
-    ...profile,
+    ...user,
     id: userId,
-    phone: profile.phone.startsWith('+91') ? profile.phone : `+91 ${cleanPhone}`,
+    phone: user.phone.startsWith('+91') ? user.phone : `+91 ${cleanPhone}`,
   };
 
   serverUsers[cleanPhone] = savedUser;
@@ -1047,7 +1170,79 @@ app.get('/api/users', (_req, res) => {
   res.json(Object.values(serverUsers));
 });
 
+// Delete user account & cascade delete listings, requests, moderation
+app.delete('/api/users/:id', (req, res) => {
+  const { id } = req.params;
+
+  // Protect administrative accounts from deletion
+  const cleanPhone = id.replace('user-', '').replace(/\D/g, '').slice(-10);
+  const targetUser = serverUsers[cleanPhone] || Object.values(serverUsers).find((u) => u.id === id);
+  if (targetUser?.isAdmin || id === 'user-admin' || cleanPhone === '9999999999') {
+    return res.status(403).json({ error: 'Administrative accounts cannot be deleted.' });
+  }
+
+  // 1. Remove from serverUsers
+  if (serverUsers[cleanPhone]) {
+    delete serverUsers[cleanPhone];
+  } else {
+    // Fallback: search by id
+    for (const key in serverUsers) {
+      if (serverUsers[key].id === id) delete serverUsers[key];
+    }
+  }
+
+  // 2. Remove Moderation Record
+  if (userModerationMap[id]) delete userModerationMap[id];
+
+  // 3. Cascade Delete: Listings
+  const deletedListings = serverListings.filter((l) => l.sellerId === id).map((l) => l.id);
+  serverListings = serverListings.filter((l) => l.sellerId !== id);
+
+  // 4. Cascade Delete: Requests
+  const deletedRequests = serverRequests.filter((r) => r.requesterId === id).map((r) => r.id);
+  serverRequests = serverRequests.filter((r) => r.requesterId !== id);
+
+  // 4.5. Cascade Delete: Exchanges
+  serverExchanges = serverExchanges.filter((e) => e.sellerId !== id && e.buyerId !== id);
+
+  // 4.6. Cascade Delete: Chat Threads & Messages
+  for (const [threadId, thread] of threads.entries()) {
+    if (thread.sellerId === id || thread.buyerId === id) {
+      threads.delete(threadId);
+      messages.delete(threadId);
+    }
+  }
+
+  saveServerState();
+
+  // 5. Broadcast deletions to all connected clients
+  deletedListings.forEach((listingId) => {
+    broadcastToAll({ type: 'LISTING_DELETED', id: listingId, removedByAdmin: true });
+  });
+  deletedRequests.forEach((reqId) => {
+    broadcastToAll({ type: 'REQUEST_DELETED', id: reqId });
+  });
+  // Broadcast user deletion so admins see UI update and deleted user is logged out
+  broadcastToAll({ type: 'USER_DELETED', userId: id });
+
+  res.json({ success: true, deletedListings, deletedRequests });
+});
+
 // Chat Threads API
+app.delete('/api/chat/threads/:id', (req, res) => {
+  const { id } = req.params;
+  threads.delete(id);
+  messages.delete(id);
+  saveServerState();
+
+  broadcastToAll({
+    type: 'THREAD_DELETED',
+    threadId: id,
+  });
+
+  res.json({ success: true, threadId: id });
+});
+
 app.get('/api/chat/threads', (req, res) => {
   const userId = req.query.userId as string;
   const all = Array.from(threads.values()).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
@@ -1139,7 +1334,7 @@ app.post('/api/chat/messages', (req, res) => {
       buyerHostel: senderHostel || 'UIET Hostel',
       buyerPhone,
       lastMessageText: text,
-      lastMessageTime: new Date().toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true }),
+      lastMessageTime: new Date().toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' }),
       lastMessageSenderId: senderId,
       unreadCount: 1,
       updatedAt: Date.now(),
@@ -1158,7 +1353,7 @@ app.post('/api/chat/messages', (req, res) => {
     return res.json({ success: true, message: existing, duplicate: true });
   }
 
-  const formattedTime = new Date().toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true });
+  const formattedTime = new Date().toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' });
 
   const newMsg: ChatMessage = {
     id: msgId,
@@ -1180,11 +1375,7 @@ app.post('/api/chat/messages', (req, res) => {
   if (thread) {
     thread.lastMessageText = text;
     thread.lastMessageTime = formattedTime;
-    if (thread.lastMessageSenderId && thread.lastMessageSenderId !== senderId) {
-      thread.unreadCount = 1;
-    } else {
-      thread.unreadCount = (thread.unreadCount || 0) + 1;
-    }
+    thread.unreadCount = thread.lastMessageSenderId !== senderId ? 1 : (thread.unreadCount || 0) + 1;
     thread.lastMessageSenderId = senderId;
     thread.updatedAt = Date.now();
     threads.set(thread.id, thread);
@@ -1252,10 +1443,11 @@ app.post('/api/chat/threads', (req, res) => {
     buyerHostel: buyerHostel || 'UIET Hostel',
     buyerPhone,
     lastMessageText: 'Chat started',
-    lastMessageTime: 'Just now',
+    lastMessageTime: new Date().toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' }),
     lastMessageSenderId: buyerId,
     unreadCount: 0,
     updatedAt: Date.now(),
+    isOfficialAdminContext: Boolean(req.body.isOfficialAdminContext || (buyerId && serverUsers[buyerId.replace('user-', '')]?.isAdmin) || buyerId === 'user-admin'),
   };
 
   threads.set(id, newThread);
@@ -1361,11 +1553,24 @@ app.get('/api/admin/moderation', (_req, res) => {
 });
 
 app.post('/api/admin/remove-listing', (req, res) => {
-  const { id, reason, adminName } = req.body;
+  const { id, reason, adminName, adminId, requesterId } = req.body || {};
+  const callerId = adminId || requesterId;
+
+  if (!checkIsAdmin(callerId)) {
+    return res.status(403).json({ error: 'Unauthorized: Admin privileges required.' });
+  }
   if (!id) return res.status(400).json({ error: 'Listing ID is required' });
 
   const found = serverListings.find((l) => l.id === id);
   serverListings = serverListings.filter((l) => l.id !== id);
+
+  for (const [threadId, thread] of threads.entries()) {
+    if (thread.listingId === id) {
+      threads.delete(threadId);
+      messages.delete(threadId);
+      broadcastToAll({ type: 'THREAD_DELETED', threadId });
+    }
+  }
 
   if (found) {
     adminRemovalLogs.unshift({
@@ -1374,7 +1579,7 @@ app.post('/api/admin/remove-listing', (req, res) => {
       listingTitle: found.title,
       sellerId: found.sellerId,
       reason: reason?.trim() || undefined,
-      timestamp: new Date().toLocaleTimeString(),
+      timestamp: new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' }),
       adminName: adminName || 'Campus Proctor',
     });
   }
@@ -1395,7 +1600,12 @@ app.post('/api/admin/remove-listing', (req, res) => {
 });
 
 app.post('/api/admin/warn-user', (req, res) => {
-  const { userId, reason, adminName } = req.body;
+  const { userId, reason, adminName, adminId, requesterId } = req.body || {};
+  const callerId = adminId || requesterId;
+
+  if (!checkIsAdmin(callerId)) {
+    return res.status(403).json({ error: 'Unauthorized: Admin privileges required.' });
+  }
   if (!userId || !reason) {
     return res.status(400).json({ error: 'User ID and reason are required' });
   }
@@ -1407,7 +1617,7 @@ app.post('/api/admin/warn-user', (req, res) => {
   const warning = {
     id: `warn-${Date.now()}`,
     reason: reason.trim(),
-    timestamp: new Date().toLocaleTimeString(),
+    timestamp: new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' }),
     by: adminName || 'Campus Proctor',
   };
 
@@ -1425,7 +1635,12 @@ app.post('/api/admin/warn-user', (req, res) => {
 });
 
 app.post('/api/admin/suspend-user', (req, res) => {
-  const { userId, suspended, reason, adminName } = req.body;
+  const { userId, suspended, reason, adminName, adminId, requesterId } = req.body || {};
+  const callerId = adminId || requesterId;
+
+  if (!checkIsAdmin(callerId)) {
+    return res.status(403).json({ error: 'Unauthorized: Admin privileges required.' });
+  }
   if (!userId) return res.status(400).json({ error: 'User ID is required' });
 
   if (!userModerationMap[userId]) {
@@ -1459,6 +1674,171 @@ app.post('/api/admin/suspend-user', (req, res) => {
   });
 
   res.json({ success: true, userId, isSuspended: isSusp, moderation: userModerationMap[userId] });
+});
+
+// ==========================================
+// --- CAMPUS ANNOUNCEMENTS & REVIEW MODERATION ---
+// ==========================================
+
+
+function checkIsAdmin(idOrPhone?: string): boolean {
+  if (!idOrPhone) return false;
+  const cleanPhone = String(idOrPhone).replace('user-', '').replace(/\D/g, '').slice(-10);
+  const user = serverUsers[cleanPhone] || Object.values(serverUsers).find((u) => u.id === idOrPhone);
+  return Boolean(user && user.isAdmin);
+}
+
+app.get('/api/announcements', (_req, res) => {
+  res.json(serverAnnouncements);
+});
+
+app.post('/api/announcements', (req, res) => {
+  const { adminId, requesterId, message, priority, adminName, id, timestamp } = req.body || {};
+  const callerId = adminId || requesterId;
+
+  if (!checkIsAdmin(callerId)) {
+    return res.status(403).json({ error: 'Unauthorized: Admin privileges required.' });
+  }
+
+  if (!message || !message.trim()) {
+    return res.status(400).json({ error: 'Announcement message is required' });
+  }
+  const announcement: CampusAnnouncement = {
+    id: id || `announcement-${Date.now()}`,
+    message: message.trim(),
+    priority: priority || 'normal',
+    adminName: adminName || 'Chief Proctor Office',
+    timestamp: timestamp || Date.now(),
+  };
+
+  serverAnnouncements.unshift(announcement);
+  saveServerState();
+
+  broadcastToAll({
+    type: 'ANNOUNCEMENT_CREATED',
+    announcement,
+  });
+
+  res.json(announcement);
+});
+
+app.delete('/api/announcements/:id', (req, res) => {
+  const { id } = req.params;
+  const { adminId, requesterId } = req.body || {};
+  const queryAdminId = req.query.adminId as string | undefined;
+  const callerId = adminId || requesterId || queryAdminId;
+
+  if (!checkIsAdmin(callerId)) {
+    return res.status(403).json({ error: 'Unauthorized: Admin privileges required.' });
+  }
+  serverAnnouncements = serverAnnouncements.filter((a) => a.id !== id);
+  saveServerState();
+
+  broadcastToAll({
+    type: 'ANNOUNCEMENT_DELETED',
+    id,
+  });
+
+  res.json({ success: true, id });
+});
+
+
+app.post('/api/exchanges/:id/rate', (req, res) => {
+  const { id } = req.params;
+  const { buyerRating, buyerReview, buyerId } = req.body || {};
+
+  const exchange = serverExchanges.find((e) => e.id === id);
+  if (!exchange) {
+    return res.status(404).json({ error: 'Exchange session not found' });
+  }
+
+  const ratingNum = Number(buyerRating);
+  if (isNaN(ratingNum) || ratingNum < 1 || ratingNum > 5) {
+    return res.status(400).json({ error: 'Valid buyerRating (1-5) is required' });
+  }
+
+  exchange.buyerRating = ratingNum;
+  if (typeof buyerReview === 'string') {
+    exchange.buyerReview = buyerReview.trim();
+  }
+  exchange.ratedAt = new Date().toISOString();
+
+  saveServerState();
+
+  // Broadcast EXCHANGE_RATED and EXCHANGE_UPDATED to all connected clients
+  broadcastToAll({
+    type: 'EXCHANGE_RATED',
+    exchange,
+  });
+
+  broadcastToAll({
+    type: 'EXCHANGE_UPDATED',
+    exchange,
+  });
+
+  // Send targeted SELLER_RATED notification event to seller socket
+  for (const client of activeSockets) {
+    if (client.userId === exchange.sellerId && client.ws.readyState === 1) {
+      try {
+        client.ws.send(
+          JSON.stringify({
+            type: 'SELLER_RATED',
+            sellerId: exchange.sellerId,
+            buyerName: exchange.buyerName,
+            rating: ratingNum,
+            review: exchange.buyerReview,
+            listingTitle: exchange.listingTitle,
+            exchange,
+          })
+        );
+      } catch {}
+    }
+  }
+
+  res.json({ success: true, exchange });
+});
+
+app.post('/api/admin/reviews/expunge', (req, res) => {
+  const { exchangeId, adminName, adminId, requesterId } = req.body || {};
+  const callerId = adminId || requesterId;
+
+  if (!checkIsAdmin(callerId)) {
+    return res.status(403).json({ error: 'Unauthorized: Admin privileges required.' });
+  }
+  if (!exchangeId) {
+    return res.status(400).json({ error: 'exchangeId is required' });
+  }
+
+  const exchange = serverExchanges.find((e) => e.id === exchangeId);
+  if (!exchange) {
+    return res.status(404).json({ error: 'Exchange not found' });
+  }
+
+  exchange.buyerRating = undefined;
+  exchange.buyerReview = undefined;
+
+  adminRemovalLogs.unshift({
+    id: `log-${Date.now()}`,
+    listingId: exchange.listingId,
+    listingTitle: exchange.listingTitle,
+    sellerId: exchange.sellerId,
+    reason: `Expunged retaliatory review on exchange ${exchangeId}`,
+    timestamp: new Date().toLocaleString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    }),
+    adminName: adminName || 'Chief Proctor',
+  });
+
+  saveServerState();
+
+  broadcastToAll({
+    type: 'EXCHANGE_UPDATED',
+    exchange,
+  });
+
+  res.json({ success: true, exchange });
 });
 
 // Setup Vite middleware in dev or static files in production

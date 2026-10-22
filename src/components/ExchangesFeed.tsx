@@ -42,7 +42,7 @@ export const getRentalDueStatus = (rentDueDate?: string) => {
     isDueTomorrow: diffDays === 1,
     isDueIn2Days: diffDays === 2,
     isDueSoon: diffDays <= 2,
-    formattedDate: due.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }),
+    formattedDate: due.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' }),
   };
 };
 

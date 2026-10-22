@@ -16,7 +16,15 @@ export type RealtimeEventType =
   | 'USER_WARNED'
   | 'USER_SUSPENDED_STATUS'
   | 'MESSAGES_READ'
-  | 'RENTAL_REMINDER';
+  | 'RENTAL_REMINDER'
+  | 'USER_DELETED'
+  | 'ANNOUNCEMENT_CREATED'
+  | 'ANNOUNCEMENT_DELETED'
+  | 'EXCHANGE_UPDATED'
+  | 'EXCHANGE_RATED'
+  | 'SELLER_RATED'
+  | 'THREAD_DELETED'
+  | 'UPDATE_LISTING';
 
 export type RealtimeEventListener = (event: {
   type: RealtimeEventType;
@@ -173,6 +181,31 @@ class RealtimeCampusService {
             this.notifyListeners('RENTAL_REMINDER', data);
             this.broadcastLocal('RENTAL_REMINDER', data);
           }
+
+          if (data.type === 'USER_DELETED') {
+            this.notifyListeners('USER_DELETED', data);
+            this.broadcastLocal('USER_DELETED', data);
+          }
+
+          if (data.type === 'ANNOUNCEMENT_CREATED') {
+            this.notifyListeners('ANNOUNCEMENT_CREATED', data);
+            this.broadcastLocal('ANNOUNCEMENT_CREATED', data);
+          }
+
+          if (data.type === 'ANNOUNCEMENT_DELETED') {
+            this.notifyListeners('ANNOUNCEMENT_DELETED', data);
+            this.broadcastLocal('ANNOUNCEMENT_DELETED', data);
+          }
+
+          if (data.type === 'EXCHANGE_UPDATED') {
+            this.notifyListeners('EXCHANGE_UPDATED', data);
+            this.broadcastLocal('EXCHANGE_UPDATED', data);
+          }
+
+          if (data.type === 'THREAD_DELETED') {
+            this.notifyListeners('THREAD_DELETED', data);
+            this.broadcastLocal('THREAD_DELETED', data);
+          }
         } catch (e) {
           console.warn('Error parsing incoming WS message:', e);
         }
@@ -242,6 +275,28 @@ class RealtimeCampusService {
   // ==========================================
 
   // Listings
+  public updateListing(listing: Listing) {
+    this.send({
+      type: 'UPDATE_LISTING',
+      listing,
+    });
+    fetch(`/api/listings/${encodeURIComponent(listing.id)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(listing),
+    }).catch(() => {});
+  }
+
+  public deleteThread(threadId: string) {
+    this.send({
+      type: 'DELETE_THREAD',
+      threadId,
+    });
+    fetch(`/api/chat/threads/${encodeURIComponent(threadId)}`, {
+      method: 'DELETE',
+    }).catch(() => {});
+  }
+
   public createListing(listing: Listing) {
     this.send({
       type: 'CREATE_LISTING',
@@ -542,6 +597,7 @@ class RealtimeCampusService {
     buyerName: string;
     buyerHostel: string;
     buyerPhone?: string;
+    isOfficialAdminContext?: boolean;
   }): Promise<ChatThread | null> {
     try {
       const res = await fetch('/api/chat/threads', {
